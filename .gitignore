@@ -1,0 +1,13 @@
+# Python virtual muhiti (venv) va kesh fayllari
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Maxfiy konfiguratsiya fayllari
+
+config.py 
+.env
+
+# Ma'lumotlar bazasi fayllari (agar SQLite ishlatilsa)
+*.db
