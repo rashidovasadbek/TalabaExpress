@@ -763,10 +763,19 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
         if file_path:
             await callback.message.answer_document(
                 document=FSInputFile(file_path),
-                caption=f"✅ **'{user_data.get('topic', 'Hujjat')}'** mavzusidagi {work_type_display} tayyor!\n "
-                        f"Sarf: {cost:,.0f} so'm.",
+                caption=f"{user_data.get('topic', 'Hujjat')}",
                         parse_mode='Markdown' 
             ) 
+        
+        message_text = (
+                f"✅ **'{user_data.get('topic', 'Hujjat')}'** mavzusidagi {work_type_display} tayyor!\n"
+                f"Sarf: {cost:,.0f} so'm."
+            )
+
+        await callback.message.answer(
+                message_text,
+                parse_mode='Markdown'
+            )
     except Exception as e:
       
         print(f"Generatsiya xatosi: {e}")
