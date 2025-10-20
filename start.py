@@ -20,6 +20,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.utils.deep_linking import create_start_link
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import urllib.parse
+from aiogram.filters import StateFilter
 
 class UserGeneration(StatesGroup):
     choosing_language = State() 
@@ -37,14 +38,14 @@ class Payment(StatesGroup):
 router = Router()
 
 WELCOME_TEXT = (
-    "<b>TalabaExpress</b>\n\n"
-    "📚 <b>Talabalarga yordamchi bot</b>\n\n"
+    "TalabaExpress\n\n"
+    "📚 Talabalarga yordamchi bot\n\n"
     "TalabaExpress bilan siz:\n"
     "• Referat va mustaqil ishlarni (DOCX) tez va qulay yarata olasiz.\n"
     "• Prezentatsiyalar (PPTX) keyinchalik qo‘llanadi.\n"
     "• PDF (tez kunda) va boshqa formatlar keladi.\n\n"
     "⏳ Ayniqsa deadline yaqinlashganda juda qulay — bir necha daqiqada hujjat tayyorlanadi.\n\n"
-    "Unutmang: Agar siz yangi foydalanuvchi bo'lsangiz, sizga 5000 so'm boshlang'ich balans berildi!\n\n"
+    "Unutmang: Agar siz yangi foydalanuvchi bo'lsangiz, sizga 10000 so'm boshlang'ich balans berildi!\n\n"
     "Pastdagi tugmalardan birini tanlang:"
 )
 
@@ -106,15 +107,20 @@ def build_confirmation_keyboard() -> types.InlineKeyboardMarkup:
 async def  check_user_subs(bot: Bot, user_id: int, db:Database) -> list[str]:
     not_joined = []
     channels = await db.get_channels()
-    
-    for ch in channels:
+    for ch_name in channels:
+        if not ch_name.startswith(('-', '@')):
+            channel_id = '@' + ch_name
+        else:
+            channel_id = ch_name
+            
         try:
-            member = await bot.get_chat_member(ch, user_id)
+            member = await bot.get_chat_member(channel_id, user_id) 
+            
             if member.status not in["creator", "administrator", "member"]:
-                not_joined.append(ch)
+                not_joined.append(ch_name)
                 
         except Exception:
-            not_joined.append(ch)
+            not_joined.append(ch_name)
             
     return not_joined
 
@@ -159,7 +165,29 @@ async def handle_start_doc_mustaqil_ish(message: types.Message, state: FSMContex
         reply_markup=build_language_keyboard(),
         parse_mode="Markdown"
     )
+
+@router.message(F.text == "💰 Balans", StateFilter(None, "*"))
+async def handle_balance_button(message: types.Message, db: Database):
+     
+    balance = await db.get_user_balance(message.from_user.id) 
+ 
+    if balance is None:
+        balance = 0.00
+        
+    balance_display = f"{balance:,.0f} so'm"
     
+    balance_text = f"""
+        💰 **Sizning Hisobingiz Holati**
+
+        **Joriy Balans:** **{balance_display}**
+
+        ---
+        ⚡️ **Tezkor Toʻldirish:**
+        Balansingizni toʻldirish uchun ** /buy ** buyrugʻini bosing.
+        Buyurtmangizni toʻxtatib qoʻymang!
+        """
+    await message.answer(balance_text, parse_mode="Markdown")
+
 @router.message(F.text == "📊 Prezentatsiya (PPTX)")
 async def handle_start_pptx(message: types.Message, state: FSMContext, bot: Bot, db:Database):
     
@@ -180,7 +208,7 @@ async def handle_start_pptx(message: types.Message, state: FSMContext, bot: Bot,
         parse_mode="Markdown"
     )
 
-@router.message(F.text == "📘 Yo'riqnoma")
+@router.message(F.text == "📘 Yo'riqnoma", StateFilter(None, "*"))
 async def handle_help_button_redirect(message: types.Message):
     # Bu funkisiya asosiy menyudagi 'ℹ️ Yordam' tugmasi bosilganda ishlaydi
 
@@ -450,7 +478,10 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
     tr_type = "generation"
     
     user_balance = await db.get_user_balance(user_id) 
-      
+    
+    if user_balance is None:
+        user_balance = 0.00
+    
     if  user_balance < cost:
         # user_balance None bo'lsa, uni 0 ga o'rnatish kerak, aks holda xato beradi:
         
@@ -589,6 +620,7 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
                 f"⌛ Bu jarayon har bir slayd uchun alohida so'rov yuborishni talab qiladi va biroz vaqt olishi mumkin.",
                 parse_mode='Markdown'
             )
+            
             for i, title in enumerate(slide_titles_list):
             
                 # Progress xabarini yangilash
@@ -736,11 +768,11 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
                         parse_mode='Markdown' 
             ) 
     except Exception as e:
-       # XATO YUZ BERDI: Pulni qaytarish (Rollback)
+      
         print(f"Generatsiya xatosi: {e}")
         
         if cost > 0 :
-            # Pul yechilgan bo'lsa va bu bepul urinish bo'lmasa, qaytaramiz
+          
             await db.credit_balance(user_id, cost, "rollback")
             
             error_msg = f"❌ **Texnik Xatolik!** Hujjatni yaratishda xato yuz berdi: {e} \n"
@@ -752,42 +784,20 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
         if file_path and os.path.exists(file_path):
             os.remove(file_path)
             
-        # Har doim FSM holatini tozalash
+       
         await state.clear()
         
         await callback.message.answer(
         "Bot bilan ishlashni davom ettirish uchun quyidagi tugmalardan birini tanlang:",
         reply_markup = build_main_reply_keyboard()
     )
-           
-@router.message(F.text == "💰 Balans")
-async def handle_balance_button(message: types.Message, db: Database): # db ga tip hintni ham qo'shdik
-     
-    balance = await db.get_user_balance(message.from_user.id) 
- 
-    if balance is None:
-        balance = 0.00
-        
-    balance_display = f"{balance:,.0f} so'm"
-    
-    balance_text = f"""
-        💰 **Sizning Hisobingiz Holati**
-
-        **Joriy Balans:** **{balance_display}**
-
-        ---
-        ⚡️ **Tezkor Toʻldirish:**
-        Balansingizni toʻldirish uchun ** /buy ** buyrugʻini bosing.
-        Buyurtmangizni toʻxtatib qoʻymang!
-        """
-    await message.answer(balance_text, parse_mode="Markdown")
     
 @router.message(Command("buy"))
 async def command_buy_handler(message: types.Message, db):
-    # Narxlar jadvalini matnga aylantiramiz
+    
     price_list = ""
     for page_range, price in PRICING.items():
-        # Masalan: 10-15 sahifa uchun - 4,000 so'm
+       
         price_list += f"\n🔹{page_range} sahifa uchun: **{price:,.0f} so'm**\n"
         
     buy_text = f"""
@@ -825,15 +835,13 @@ async def handle_check_prompt(context_obj: Message | CallbackQuery, state: FSMCo
     # Message yoki CallbackQuery ob'ektidan xabar ob'ektini olish
     if isinstance(context_obj, CallbackQuery):
         message = context_obj.message
-        # Callback-ni yopish (javob qaytarish)
+        
         await context_obj.answer() 
     else:
         message = context_obj
-        
-    # FSM holatini tozalash (yangi jarayon boshlanishi uchun)
+
     await state.clear() 
     
-    # Xabarni tayyorlash (Sizning jozibali matningiz)
     chek_prompt_text = f"""
     📸 **Mablag'ni Faollashtirishning Oxirgi Qadami!** 🚀
 
@@ -846,15 +854,11 @@ async def handle_check_prompt(context_obj: Message | CallbackQuery, state: FSMCo
     Biz chekni darhol tekshiramiz va balansingizni to'ldiramiz! Tezkor ishingiz uchun rahmat! 😉
     """
     
-    # Xabarni yuborish/tahrirlash
     if isinstance(context_obj, CallbackQuery):
-        # Tugma bosilganda xabarni tahrirlash (edit_text)
         await message.edit_text(chek_prompt_text, parse_mode="Markdown")
     else:
-        # /chek buyrug'ida yangi xabar yuborish (answer)
         await message.answer(chek_prompt_text, parse_mode="Markdown")
         
-    # FSM holatini o'rnatish
     await state.set_state(Payment.waiting_for_receipt)
 
 @router.callback_query(F.data == "start_payment_upload")
@@ -952,7 +956,7 @@ async def process_receipt_upload(message: types.Message, state: FSMContext, bot:
 async def process_receipt_invalid(message: types.Message):
     await message.answer("❌ Iltimos, faqat to'lov chekining **rasmini** (skrinshotini) yuboring.")
 
-REFERRAL_BONUS = 1000 
+REFERRAL_BONUS = 2000 
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message, bot: Bot, db: Database):
@@ -1049,7 +1053,7 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     
     Men ajoyib botni topdim! {bot_username} — referat, mustaqil ish va taqdimotlarni (DOCX/PPTX) bir necha daqiqada tayyorlaydi.
     
-    🎁 Sizga ham **+5000 so'm** boshlang'ich bonus beriladi!
+    🎁 Sizga ham **+10000 so'm** boshlang'ich bonus beriladi!
     
     Qo'shilish uchun: {personal_link}
     """
