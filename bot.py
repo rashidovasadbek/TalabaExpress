@@ -2,7 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
-from config import BOT_TOKEN, PROXY
+from config import BOT_TOKEN
 import admin, start, prompt
 from database import Database
 from dotenv import load_dotenv 
