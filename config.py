@@ -5,8 +5,8 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 #PROXY = os.getenv("PROXY")
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
-PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID"))
+#ADMIN_ID = int(os.getenv("ADMIN_ID"))
+#PAYMENT_CHANNEL_ID = int(os.getenv("PAYMENT_CHANNEL_ID"))
 
 DB_HOST = os.getenv("DB_HOST")
 DB_PORT = int(os.getenv("DB_PORT"))
