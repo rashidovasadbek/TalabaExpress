@@ -48,7 +48,6 @@ async def cmd_prompt_menu(message: types.Message):
         reply_markup=build_admin_prompt_menu()
     )
 
-# Promptni o'zgartirish jarayonini boshlash
 @router.callback_query(F.data == "admin_change_prompt")
 async def start_prompt_setup(callback: types.CallbackQuery, state: FSMContext):
     if callback.from_user.id != ADMIN_ID:
@@ -63,7 +62,6 @@ async def start_prompt_setup(callback: types.CallbackQuery, state: FSMContext):
     )
     await callback.answer()
     
-# Prompt turini tanlash va hozirgi qiymatni ko'rsatish
 @router.callback_query(F.data.startswith("set_prompt_"), AdminSettings.choosing_prompt_key)
 async def prompt_key_selected(callback: types.CallbackQuery, state: FSMContext, db: Database):
     prompt_key = callback.data.split("_")[2]
@@ -85,7 +83,6 @@ async def prompt_key_selected(callback: types.CallbackQuery, state: FSMContext, 
     )
     await callback.answer()
 
-# Yangi prompt matnini qabul qilish va bazada saqlash
 @router.message(AdminSettings.waiting_for_new_prompt)
 async def process_new_prompt_value(message: types.Message, state: FSMContext, db: Database):
     new_prompt_value = message.text
@@ -150,7 +147,6 @@ async def view_all_prompts(callback: types.CallbackQuery, db: Database):
     )
     await callback.answer()
     
-# Bekor qilish funksiyasi (barcha FSM holatlaridan chiqish)
 @router.callback_query(F.data == "cancel_admin_op")
 async def cancel_admin_op(callback: types.CallbackQuery, state: FSMContext):
     await state.clear()
