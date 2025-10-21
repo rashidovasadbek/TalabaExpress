@@ -19,7 +19,7 @@ async def on_startup(bot: Bot):
     
 async def main():
     
-    #session = AiohttpSession(proxy=PROXY) if PROXY else None
+
     bot = Bot(token = BOT_TOKEN)
     storage = MemoryStorage()
     dp = Dispatcher(storage = storage)
