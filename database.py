@@ -72,11 +72,12 @@ class Database:
         Telegram ID bo'yicha foydalanuvchi ma'lumotlarini bazadan oladi.
         :return: Foydalanuvchi obyekti (Masalan, dict/Record), yoki None.
         """
+        user_id_str = str(user_id)
         sql = """
         SELECT * FROM users WHERE telegram_id = $1
         """
         # pool.fetchrow faqat bir qatorni qaytaradi
-        user = await self.pool.fetchrow(sql, user_id)
+        user = await self.pool.fetchrow(sql, user_id_str)
         return user
     
     async def get_or_create_user(self, user_id: int, username: str | None, referrer_id: int | None = None) -> tuple[bool, bool]:
@@ -86,13 +87,13 @@ class Database:
         
         :return: (Muvaffaqiyatli bo'lsa True/False, Yangi foydalanuvchi bo'lsa True/False)
         """
-        
+        user_id_str = str(user_id)
         # Avval mavjudligini tekshirish
-        user = await self.get_user(user_id)
+        user = await self.get_user(user_id_str)
         is_new_user = user is None
         
-        # 5000 so'm starter balansni faqat yangi foydalanuvchiga beramiz
-        INITIAL_BALANCE = 5000.00 if is_new_user else 0.00
+        # 10000 so'm starter balansni faqat yangi foydalanuvchiga beramiz
+        INITIAL_BALANCE = 10000.00 if is_new_user else 0.00
         
         # Eslatma: SQL da telegram_id PRIMARY KEY yoki UNIQUE deb belgilangan
         sql = """
