@@ -26,7 +26,7 @@ class Database:
     
     async def get_channels(self) -> list[str]:
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch('SELECT username FROM "channels" ORDER BY id')
+            rows = await conn.fetch('SELECT username FROM public.channels ORDER BY id')
             return[r["username"]for r in rows]
         
     async def add_channel(self, username: str):
