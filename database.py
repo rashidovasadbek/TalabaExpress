@@ -105,12 +105,12 @@ class Database:
         try:
             if is_new_user:
             
-                await self.pool.execute(sql, user_id, username, INITIAL_BALANCE, referrer_id)
+                await self.pool.execute(sql, user_id_str, username, INITIAL_BALANCE, referrer_id)
                 
             return (True, is_new_user)
             
         except Exception as e:
-            print(f"Error in get_or_create_user for user {user_id}: {e}")
+            print(f"Error in get_or_create_user for user {user_id_str}: {e}")
             # ✅ Xato bo'lganda ham kutilgan formatda qaytarish
             return (False, False)
     
