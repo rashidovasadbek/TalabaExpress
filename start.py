@@ -1082,16 +1082,18 @@ async def command_referral_handler(message: types.Message, bot: Bot):
 
     # 4. Asosiy xabar va statistika
     referral_text = f"""
-    🤝 **Dostlaringizni taklif qiling va bonular oling!** 💰
+    🤝 <b>Dostlaringizni taklif qiling va bonular oling!</b> 💰
     
     Sizning ulashgan havolangiz orqali do'stingiz botga qo'shilishi bilan, hisobingizga darhol:
-    ✨ **+{REFERRAL_BONUS} so'm qo'shiladi!** ✨
+    ✨ <b>+{REFERRAL_BONUS} so'm qo'shiladi!</b> ✨
     
     ---
     
-    **📊 Statistikangiz:**
-    * Taklif qilganlar: **0** kishi
-    * Jami daromad: **0** so'm
+    <b>📊 Statistikangiz:</b>
+    * Taklif qilganlar: <b>0</b> kishi
+    * Jami daromad: <b>0</b> so'm
+    
+    QO'SHILISH UCHUN HAVOLA: <a href="{personal_link}">BOTGA O'TISH</a>
     """
     
     # 5. Inline Klaviatura yaratish
@@ -1108,7 +1110,7 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     await message.answer(
         referral_text,
         reply_markup=keyboard,
-        parse_mode="Markdown"
+        parse_mode="HTML"
     )
 
 def get_help_contact_keyboard() -> types.InlineKeyboardMarkup:
