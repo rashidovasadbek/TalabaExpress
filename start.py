@@ -21,6 +21,8 @@ from aiogram.utils.deep_linking import create_start_link
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import urllib.parse
 from aiogram.filters import StateFilter
+import base64
+from aiogram.types import Message
 
 class UserGeneration(StatesGroup):
     choosing_language = State() 
@@ -976,13 +978,21 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database):
 
     if message.text and len(message.text.split()) > 1:
         payload = message.text.split()[1]
-        if payload.startswith("ref_"):
-            try:
-                referrer_id = int(payload.replace("ref_", ""))
+        try:
+            # Payloadni baytlarga aylantiramiz va dekodlaymiz
+            decoded_payload_bytes = base64.urlsafe_b64decode(payload + '==') 
+            decoded_payload = decoded_payload_bytes.decode('utf-8')
+            
+            # Agar dekodlangan matn "ref_" bilan boshlansa, ishni davom ettiramiz
+            if decoded_payload.startswith("ref_"):
+                referrer_id = int(decoded_payload.replace("ref_", ""))
                 if referrer_id == user_id:
                     referrer_id = None
-            except ValueError:
-                referrer_id = None
+            
+        except Exception as e:
+            # Agar dekodlashda xato bo'lsa (bu Base64 bo'lmasa yoki noto'g'ri bo'lsa)
+            print(f"Referral payloadni dekodlashda xato: {e}")
+            referrer_id = None
     
 
     not_joined = await check_user_subs(bot, user_id, db)
