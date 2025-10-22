@@ -21,8 +21,6 @@ from aiogram.utils.deep_linking import create_start_link
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import urllib.parse
 from aiogram.filters import StateFilter
-import base64
-from aiogram.types import Message
 
 class UserGeneration(StatesGroup):
     choosing_language = State() 
@@ -942,7 +940,7 @@ async def process_receipt_upload(message: types.Message, state: FSMContext, bot:
             )
         except Exception as e:
             print(f"ERROR: Admin kanaliga chek yuborishda xato: {e}")
-            await message.answer("❌ Uzr, chekni admin kanaliga yuborishda texnik xato yuz berdi. Adminga murojat qiling")
+            await message.answer("❌ Uzr, chekni admin kanaliga yuborishda texnik xato yuz berdi. Adminga murojat qili")
             return
     else:
         # Agar F.photo yoki F.document filtrlari muvaffaqiyatsiz bo'lsa, bu yerga tushadi.
@@ -978,21 +976,13 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database):
 
     if message.text and len(message.text.split()) > 1:
         payload = message.text.split()[1]
-        try:
-            # Payloadni baytlarga aylantiramiz va dekodlaymiz
-            decoded_payload_bytes = base64.urlsafe_b64decode(payload + '==') 
-            decoded_payload = decoded_payload_bytes.decode('utf-8')
-            
-            # Agar dekodlangan matn "ref_" bilan boshlansa, ishni davom ettiramiz
-            if decoded_payload.startswith("ref_"):
-                referrer_id = int(decoded_payload.replace("ref_", ""))
+        if payload.startswith("ref_"):
+            try:
+                referrer_id = int(payload.replace("ref_", ""))
                 if referrer_id == user_id:
                     referrer_id = None
-            
-        except Exception as e:
-            # Agar dekodlashda xato bo'lsa (bu Base64 bo'lmasa yoki noto'g'ri bo'lsa)
-            print(f"Referral payloadni dekodlashda xato: {e}")
-            referrer_id = None
+            except ValueError:
+                referrer_id = None
     
 
     not_joined = await check_user_subs(bot, user_id, db)
@@ -1068,13 +1058,13 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     
     # 2. Taklif qilinadigan JODIY REKLAMA MATNI
     share_message_text = f"""
-    📚 <b>TALABALIKNI OSONLASHTIR!</b> 🚀
+    📚 **TALABALIKNI OSONLASHTIR!** 🚀
     
-    Men ajoyib botni topdim! @{bot_username} — referat, mustaqil ish va taqdimotlarni (DOCX/PPTX) bir necha daqiqada tayyorlaydi.
+    Men ajoyib botni topdim! {bot_username} — referat, mustaqil ish va taqdimotlarni (DOCX/PPTX) bir necha daqiqada tayyorlaydi.
     
-    🎁 Sizga ham <b>+10000 so'm</b> boshlang'ich bonus beriladi!
+    🎁 Sizga ham **+10000 so'm** boshlang'ich bonus beriladi!
     
-    QO'SHILISH UCHUN HAVOLA: <a href="{personal_link}">BOTGA O'TISH</a>
+    Qo'shilish uchun: {personal_link}
     """
     
     encoded_text = urllib.parse.quote_plus(share_message_text)
@@ -1082,16 +1072,16 @@ async def command_referral_handler(message: types.Message, bot: Bot):
 
     # 4. Asosiy xabar va statistika
     referral_text = f"""
-    🤝 <b>Dostlaringizni taklif qiling va bonular oling!</b> 💰
+    🤝 **Dostlaringizni taklif qiling va bonular oling!** 💰
     
     Sizning ulashgan havolangiz orqali do'stingiz botga qo'shilishi bilan, hisobingizga darhol:
-    ✨ <b>+{REFERRAL_BONUS} so'm qo'shiladi!</b> ✨
+    ✨ **+{REFERRAL_BONUS} so'm qo'shiladi!** ✨
     
     ---
     
-    <b>📊 Statistikangiz:</b>
-    * Taklif qilganlar: <b>0</b> kishi
-    * Jami daromad: <b>0</b> so'm
+    **📊 Statistikangiz:**
+    * Taklif qilganlar: **0** kishi
+    * Jami daromad: **0** so'm
     """
     
     # 5. Inline Klaviatura yaratish
@@ -1108,7 +1098,7 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     await message.answer(
         referral_text,
         reply_markup=keyboard,
-        parse_mode="HTML"
+        parse_mode="Markdown"
     )
 
 def get_help_contact_keyboard() -> types.InlineKeyboardMarkup:
