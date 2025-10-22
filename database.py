@@ -99,7 +99,7 @@ class Database:
         
         # Eslatma: SQL da telegram_id PRIMARY KEY yoki UNIQUE deb belgilangan
         sql = """
-        INSERT INTO "public.users" (telegram_id, username, balance, referrer_id) 
+        INSERT INTO users (telegram_id, username, balance, referrer_id) 
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (telegram_id) DO NOTHING;
         """
