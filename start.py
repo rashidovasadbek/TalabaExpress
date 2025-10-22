@@ -935,12 +935,12 @@ async def process_receipt_upload(message: types.Message, state: FSMContext, bot:
                 chat_id=PAYMENT_CHANNEL_ID,
                 **media_args,              
                 caption=caption_text, 
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=get_admin_receipt_action_keyboard(user_id) 
             )
         except Exception as e:
             print(f"ERROR: Admin kanaliga chek yuborishda xato: {e}")
-            await message.answer("❌ Uzr, chekni admin kanaliga yuborishda texnik xato yuz berdi.")
+            await message.answer("❌ Uzr, chekni admin kanaliga yuborishda texnik xato yuz berdi. Adminga murojat qiling")
             return
     else:
         # Agar F.photo yoki F.document filtrlari muvaffaqiyatsiz bo'lsa, bu yerga tushadi.
