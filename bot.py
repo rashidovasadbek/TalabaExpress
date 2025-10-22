@@ -2,7 +2,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
-from config import BOT_TOKEN, PROXY
+from config import BOT_TOKEN
 import admin, start, prompt
 from database import Database
 from dotenv import load_dotenv 
@@ -19,7 +19,7 @@ async def on_startup(bot: Bot):
     
 async def main():
     
-    #session = AiohttpSession(proxy=PROXY) if PROXY else None
+
     bot = Bot(token = BOT_TOKEN)
     storage = MemoryStorage()
     dp = Dispatcher(storage = storage)
