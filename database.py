@@ -72,12 +72,12 @@ class Database:
         Telegram ID bo'yicha foydalanuvchi ma'lumotlarini bazadan oladi.
         :return: Foydalanuvchi obyekti (Masalan, dict/Record), yoki None.
         """
-        user_id_str = str(user_id)
+
         sql = """
         SELECT * FROM users WHERE telegram_id = $1
         """
         # pool.fetchrow faqat bir qatorni qaytaradi
-        user = await self.pool.fetchrow(sql, user_id_str)
+        user = await self.pool.fetchrow(sql, user_id)
         return user
     
     async def get_or_create_user(self, user_id: int, username: str | None, referrer_id: int | None = None) -> tuple[bool, bool]:
@@ -87,9 +87,9 @@ class Database:
         
         :return: (Muvaffaqiyatli bo'lsa True/False, Yangi foydalanuvchi bo'lsa True/False)
         """
-        user_id_str = str(user_id)
+    
         # Avval mavjudligini tekshirish
-        user = await self.get_user(user_id_str)
+        user = await self.get_user(user_id)
         is_new_user = user is None
         
         # 10000 so'm starter balansni faqat yangi foydalanuvchiga beramiz
@@ -105,12 +105,12 @@ class Database:
         try:
             if is_new_user:
             
-                await self.pool.execute(sql, user_id_str, username, INITIAL_BALANCE, referrer_id)
+                await self.pool.execute(sql, user_id, username, INITIAL_BALANCE, referrer_id)
                 
             return (True, is_new_user)
             
         except Exception as e:
-            print(f"Error in get_or_create_user for user {user_id_str}: {e}")
+            print(f"!!! CRITICAL DB ERROR: Failed to insert user {user_id}: {e}")
             # ✅ Xato bo'lganda ham kutilgan formatda qaytarish
             return (False, False)
     
