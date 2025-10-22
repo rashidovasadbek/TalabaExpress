@@ -95,9 +95,11 @@ class Database:
         # 10000 so'm starter balansni faqat yangi foydalanuvchiga beramiz
         INITIAL_BALANCE = 10000.00 if is_new_user else 0.00
         
+        safe_username = username if username else ''
+        
         # Eslatma: SQL da telegram_id PRIMARY KEY yoki UNIQUE deb belgilangan
         sql = """
-        INSERT INTO "users" (telegram_id, username, balance, referrer_id) 
+        INSERT INTO "public.users" (telegram_id, username, balance, referrer_id) 
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (telegram_id) DO NOTHING;
         """
@@ -105,7 +107,7 @@ class Database:
         try:
             if is_new_user:
             
-                await self.pool.execute(sql, user_id, username, INITIAL_BALANCE, referrer_id)
+                await self.pool.execute(sql, user_id, safe_username, INITIAL_BALANCE, referrer_id)
                 
             return (True, is_new_user)
             
