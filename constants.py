@@ -10,6 +10,7 @@ Assalomu alaykum! Men sizning ta'lim hujjatlaringizni (Referat va Mustaqil ish) 
 2.  /new - Yangi hujjat generatsiyasini boshlash.
 3.  /buy - Balansni to'ldirish
 4.  /chek - chekni yuborish
+5.  /referral - Do'stlarni taklif qilish
     
 ✨ **Tayyor Loyihangiz 5 Qadamda!** 🚀
 
