@@ -1074,11 +1074,11 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     
     🎁 Sizga ham <b>+10000 so'm</b> boshlang'ich bonus beriladi!
     
-    Qo'shilish uchun: <a href="{personal_link}"><b>BOTGA O'TISH</b></a>
+    QO'SHILISH UCHUN HAVOLA: <a href="{personal_link}">BOTGA O'TISH</a>
     """
     
-    encoded_text = urllib.parse.quote_plus(share_message_text) # Bu endi HTML ni kodlaydi
-    share_url = f"https://t.me/share/url?url={encoded_text}&parse_mode=HTML"
+    encoded_text = urllib.parse.quote_plus(share_message_text)
+    share_url = f"https://t.me/share/url?url={encoded_text}"
 
     # 4. Asosiy xabar va statistika
     referral_text = f"""
@@ -1092,8 +1092,6 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     <b>📊 Statistikangiz:</b>
     * Taklif qilganlar: <b>0</b> kishi
     * Jami daromad: <b>0</b> so'm
-    
-    QO'SHILISH UCHUN HAVOLA: <a href="{personal_link}">BOTGA O'TISH</a>
     """
     
     # 5. Inline Klaviatura yaratish
