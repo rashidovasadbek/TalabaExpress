@@ -1060,13 +1060,15 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     share_message_text = f"""
     📚 **TALABALIKNI OSONLASHTIR!** 🚀
     
-    Men ajoyib botni topdim! @{bot_username} — referat, mustaqil ish va taqdimotlarni (DOCX/PPTX) bir necha daqiqada tayyorlaydi.
+    Men ajoyib botni topdim! {bot_username} — referat, mustaqil ish va taqdimotlarni (DOCX/PPTX) bir necha daqiqada tayyorlaydi.
     
     🎁 Sizga ham **+10000 so'm** boshlang'ich bonus beriladi!
     
     Qo'shilish uchun: {personal_link}
     """
     
+    encoded_text = urllib.parse.quote_plus(share_message_text)
+    share_url = f"https://t.me/share/url?url={encoded_text}"
 
     # 4. Asosiy xabar va statistika
     referral_text = f"""
