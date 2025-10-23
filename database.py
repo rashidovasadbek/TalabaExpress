@@ -3,6 +3,8 @@ from config import DB_HOST, DB_NAME, DB_PASS, DB_PORT, DB_USER
 from typing import Optional
 from typing import Dict
 from typing import Optional
+import logging
+import traceback
 
 class Database:
     def __init__(self):
@@ -156,7 +158,7 @@ class Database:
                     new_balance = await conn.fetchval(update_sql, amount, user_id)
                     
                     if new_balance is None:
-                        print(f"ERROR: User {user_id} not found during balance update.")
+                        logging.error(f"DB ERROR: User {user_id} not found during balance update.")
                         # Foydalanuvchi topilmasa
                         return False
 
@@ -169,8 +171,12 @@ class Database:
                     
                     return True
                 except Exception as e:
-                    # Xatolik yuz berdi. Tranzaksiya avtomatik qaytariladi (rollback).
-                    print(f"ERROR in transaction for user {user_id}: {e}")
+                    # TUZATISH 2: Xatolik yuz berganda to'liq loglama
+                    logging.error("--------------------- DB TRANZAKSIYA XATOSI ---------------------")
+                    logging.error(f"User ID: {user_id}, Turi: {tr_type}, Summa: {amount}")
+                    logging.error(f"Xato matni: {e}")
+                    logging.error(traceback.format_exc()) # <--- Eng muhimi!
+                    logging.error("---------------------------------------------------------------")
                     return False
     
     async def debit_balance(self, user_id: int, amount: float, tr_type: str) -> bool:
