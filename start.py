@@ -21,6 +21,8 @@ from aiogram.utils.deep_linking import create_start_link
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import urllib.parse
 from aiogram.filters import StateFilter
+import logging
+import traceback
 
 class UserGeneration(StatesGroup):
     choosing_language = State() 
@@ -502,7 +504,16 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
         return
     
 
-    debit_success = await db.debit_balance(user_id, cost, tr_type)
+    try:
+        debit_success = await db.debit_balance(user_id, cost, tr_type)
+    except Exception as e:
+        # DB debit funksiyasi ham xato qilsa va uni ushlab bermasa, shu yerda ushlanadi
+        debit_success = False
+        logging.error("--------------------- GLOBAL DB DEBIT XATOSI ---------------------")
+        logging.error(f"User ID: {user_id}, Turi: {tr_type}, Summa: {cost}")
+        logging.error(f"Xato matni (debit chaqiruvida): {e}")
+        logging.error(traceback.format_exc())
+        logging.error("------------------------------------------------------------------")
     if not debit_success:
         await callback.message.edit_text("❌ Uzr, pul yechishda texnik xatolik yuz berdi. Balansingizni tekshiring va qayta urinib ko'ring.")
         await state.clear()
