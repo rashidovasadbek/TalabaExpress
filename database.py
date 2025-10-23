@@ -195,7 +195,19 @@ class Database:
             return False # Manfiy yoki nol qiymatda ayirish mumkin emas
             
         # Pul yechish uchun miqdor manfiy qilinadi.
-        return await self.update_balance_and_log_transaction(user_id, -amount, tr_type)
+        try:
+        # update_balance_and_log_transaction endi xato bo'lsa False emas, Exception otadi
+            return await self.update_balance_and_log_transaction(user_id, -amount, tr_type)
+        
+        except Exception as e:
+            # XATO BU YERDA USHLANADI VA LOGLANADI!
+            logging.error("--------------------- DEBIT BILAN ALOQALI XATO ---------------------")
+            logging.error(f"User ID: {user_id}, Summa: {amount}")
+            logging.error(f"Xato turi: {type(e).__name__}")
+            logging.error(f"Xato matni: {e}")
+            logging.error(traceback.format_exc()) # <--- Traceback to'liq yozilishi shart
+            logging.error("----------------------------------------------------------------------")
+            return False
 
     async def credit_balance(self, user_id: int, amount: float, reason: str) -> bool:
         """Foydalanuvchi balansini oshiradi. Yangi update_balance_and_log_transaction orqali"""
