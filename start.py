@@ -328,7 +328,7 @@ async def show_data_for_confirmation(callback: types.CallbackQuery, state: FSMCo
     # --------------------------------------------------------------------------------------------------
     response_text += "📚 **Loyiha Tafsilotlari**\n"
     response_text += f"   • **Ish Turi:** {work_type_display}\n"
-    response_text += f"   • Mavzu: {escaped_topic}\n"
+    response_text += f"   • **Mavzu:** *{escaped_topic}*\n"
     response_text += f"   • **Til:** {user_data.get('lang', 'uz').upper()}\n"
     response_text += f"   • **Sahifalar Son: ({count_label}):** {min_pages} dan – {max_pages} gacha\n\n"
 
