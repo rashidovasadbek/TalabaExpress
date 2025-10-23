@@ -313,7 +313,7 @@ async def show_data_for_confirmation(callback: types.CallbackQuery, state: FSMCo
         
     user_data = await state.get_data()
     
-    escaped_topic = escape_markdown(user_data.get('topic'))
+    escaped_topic = escape_markdown(user_data.get('topic',''))
     escaped_uni = escape_markdown(user_data.get('uni_faculty'))
     escaped_student = escape_markdown(user_data.get('student_fio'))
     escaped_group = escape_markdown(user_data.get('student_group'))
@@ -328,7 +328,7 @@ async def show_data_for_confirmation(callback: types.CallbackQuery, state: FSMCo
     # --------------------------------------------------------------------------------------------------
     response_text += "📚 **Loyiha Tafsilotlari**\n"
     response_text += f"   • **Ish Turi:** {work_type_display}\n"
-    response_text += f"   • **Mavzu:** *{escaped_topic}*\n"
+    response_text += f"   • Mavzu: {escaped_topic}\n"
     response_text += f"   • **Til:** {user_data.get('lang', 'uz').upper()}\n"
     response_text += f"   • **Sahifalar Son: ({count_label}):** {min_pages} dan – {max_pages} gacha\n\n"
 
@@ -425,6 +425,8 @@ def escape_markdown(text):
     text = text.replace('>', r'\>')
     text = text.replace('\\', r'')
     text = text.replace('/', r'')
+    text = text.replace('*', r'\*')
+    text = text.replace('_', r'\_')
 
     return text
 
