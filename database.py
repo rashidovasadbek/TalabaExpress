@@ -147,37 +147,46 @@ class Database:
         :param tr_type: 'generation', 'rollback', 'admin_refund', 'payment'
         :return: Muvaffaqiyatli bo'lsa True, aks holda False.
         """
-        
-        async with self.pool.acquire() as conn:
-            # ASOSIY TRANZAKSIYA BLOKI - Atomarlikni ta'minlash
-            async with conn.transaction():
-                try:
-                    # 1. Balansni yangilash
-                    # Amaliyotni soddalashtirish uchun amount shu yerda qo'shiladi/ayriladi
-                    update_sql = "UPDATE users SET balance = balance + $1 WHERE telegram_id = $2 RETURNING balance"
-                    new_balance = await conn.fetchval(update_sql, amount, user_id)
-                    
-                    if new_balance is None:
-                        logging.error(f"DB ERROR: User {user_id} not found during balance update.")
-                        # Foydalanuvchi topilmasa
-                        return False
+        try:
+            async with self.pool.acquire() as conn:
+                # ASOSIY TRANZAKSIYA BLOKI - Atomarlikni ta'minlash
+                async with conn.transaction():
+                    try:
+                        # 1. Balansni yangilash
+                        # Amaliyotni soddalashtirish uchun amount shu yerda qo'shiladi/ayriladi
+                        update_sql = "UPDATE users SET balance = balance + $1 WHERE telegram_id = $2 RETURNING balance"
+                        new_balance = await conn.fetchval(update_sql, amount, user_id)
+                        
+                        if new_balance is None:
+                            logging.error(f"DB ERROR: User {user_id} not found during balance update.")
+                            # Foydalanuvchi topilmasa
+                            return False
 
-                    # 2. Tranzaksiya yozuvini kiritish (Audit uchun)
-                    log_sql = """
-                    INSERT INTO transactions (user_id, amount, type) 
-                    VALUES ($1, $2, $3)
-                    """
-                    await conn.execute(log_sql, user_id, amount, tr_type)
-                    
-                    return True
-                except Exception as e:
-                    # TUZATISH 2: Xatolik yuz berganda to'liq loglama
-                    logging.error("--------------------- DB TRANZAKSIYA XATOSI ---------------------")
-                    logging.error(f"User ID: {user_id}, Turi: {tr_type}, Summa: {amount}")
-                    logging.error(f"Xato matni: {e}")
-                    logging.error(traceback.format_exc()) # <--- Eng muhimi!
-                    logging.error("---------------------------------------------------------------")
-                    return False
+                        # 2. Tranzaksiya yozuvini kiritish (Audit uchun)
+                        log_sql = """
+                        INSERT INTO transactions (user_id, amount, type) 
+                        VALUES ($1, $2, $3)
+                        """
+                        await conn.execute(log_sql, user_id, amount, tr_type)
+                        
+                        return True
+                    except Exception as e:
+                        # TUZATISH 2: Xatolik yuz berganda to'liq loglama
+                        logging.error("--------------------- DB TRANZAKSIYA XATOSI ---------------------")
+                        logging.error(f"User ID: {user_id}, Turi: {tr_type}, Summa: {amount}")
+                        logging.error(f"Xato matni: {e}")
+                        logging.error(traceback.format_exc()) # <--- Eng muhimi!
+                        logging.error("---------------------------------------------------------------")
+                        return False
+        except Exception as e:
+            # Ulanish, Pool yoki Tranzaksiyaning istalgan joyida yuz bergan xato
+            logging.error("--------------------- GLOBAL DB XATOSI (TO'LIQ) ---------------------")
+            logging.error(f"User ID: {user_id}, Turi: {tr_type}, Summa: {amount}")
+            logging.error(f"Xato turi: {type(e).__name__}")
+            logging.error(f"Xato matni: {e}")
+            logging.error(traceback.format_exc())
+            logging.error("--------------------------------------------------------------------")
+            return False
     
     async def debit_balance(self, user_id: int, amount: float, tr_type: str) -> bool:
         """Balansdan pul ayiradi (Debit). amount musbatda kiritilishi kerak."""
