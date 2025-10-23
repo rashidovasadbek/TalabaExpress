@@ -156,7 +156,7 @@ class Database:
                         # Amaliyotni soddalashtirish uchun amount shu yerda qo'shiladi/ayriladi
                         update_sql = "UPDATE users SET balance = balance + $1 WHERE telegram_id = $2 RETURNING balance"
                         new_balance = await conn.fetchval(update_sql, amount, user_id)
-                        
+                        print(new_balance)
                         if new_balance is None:
                             logging.error(f"DB ERROR: User {user_id} not found during balance update.")
                             # Foydalanuvchi topilmasa
