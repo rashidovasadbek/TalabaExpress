@@ -90,32 +90,27 @@ class Database:
         :return: (Muvaffaqiyatli bo'lsa True/False, Yangi foydalanuvchi bo'lsa True/False)
         """
     
-        # Avval mavjudligini tekshirish
         user = await self.get_user(user_id)
         is_new_user = user is None
         
-        # 10000 so'm starter balansni faqat yangi foydalanuvchiga beramiz
-        INITIAL_BALANCE = 10000.00 if is_new_user else 0.00
+        INITIAL_BALANCE = 11000.00 if is_new_user else 0.00
         
         safe_username = username if username else ''
         
-        # Eslatma: SQL da telegram_id PRIMARY KEY yoki UNIQUE deb belgilangan
         sql = """
-        INSERT INTO users (telegram_id, username, balance, referrer_id) 
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (telegram_id) DO NOTHING;
-        """
-        
+            INSERT INTO users (telegram_id, username, balance, referrer_id) 
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (telegram_id) DO UPDATE 
+            SET username = $2,
+                referrer_id = COALESCE(users.referrer_id, $4);
+            """
         try:
-            if is_new_user:
-            
-                await self.pool.execute(sql, user_id, safe_username, INITIAL_BALANCE, referrer_id)
+            await self.pool.execute(sql, user_id, safe_username, INITIAL_BALANCE, referrer_id)
                 
             return (True, is_new_user)
             
         except Exception as e:
             print(f"!!! CRITICAL DB ERROR: Failed to insert user {user_id}: {e}")
-            # ✅ Xato bo'lganda ham kutilgan formatda qaytarish
             return (False, False)
     
     async def get_user_balance(self, user_id: int) -> float | None:

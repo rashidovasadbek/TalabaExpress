@@ -40,9 +40,9 @@ ADMIN_CARD_NUMBER = "5614 6821 0310 9783"
 
 PRICING = {
     # Diapazonlar (Sahifa soni) : Narxi (so'mda)
-    '10-15': 10000, 
-    '15-20': 12000, 
-    '21-30': 15000,
+    '10-15': 7000, 
+    '15-20': 9000, 
+    '21-30': 11000,
     # Agar yangi diapazonlar qo'shilsa, shu yerga qo'shiladi
 } 
 PAYMENT_CHANNEL_ID = -1002993820576 
