@@ -1004,40 +1004,44 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database):
         text = "📌 Siz quyidagi kanallarga a'zo bo'lishingiz kerak:\n\n"
         text += "\n".join([f"👉 {ch}" for ch in not_joined])
         await message.answer(text, reply_markup=get_channel_keyboard(not_joined))
+    else:
+        logging.info(f"USER_SUBS_OK: {user_id} - Bazaga saqlash/yangilash boshlanmoqda. Ref: {referrer_id}")
         
         db_result = await db.get_or_create_user(user_id, username, referrer_id=referrer_id)
-        return
 
-    logging.info(f"START_DB_CALL: User {user_id} ({username}) a'zo, bazaga saqlanmoqda. Referrer: {referrer_id}")
+        if db_result is None:
+            logging.error(f"USER_DB_RESULT: {user_id} - Natija to'liq None qaytdi (Noma'lum xato).")
+        else:
+            logging.info(f"USER_DB_RESULT: {user_id} - Success: {db_result[0]}, New: {db_result[1]}.")
       
-    if db_result is None or db_result[0] is False:
-            await message.answer(
-            "❌ Uzr, ma'lumotlar bazasi bilan ulanishda xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring."
-        )
-            return
-    
-    
-    is_new_user = db_result[1] 
-        
-    if is_new_user and referrer_id is not None:
-        
-        
-        await db.add_balance(referrer_id, REFERRAL_BONUS)
-        
-        try:
-            await bot.send_message(
-                referrer_id, 
-                f"🎉 **Tabriklaymiz!** Siz taklif qilgan yangi foydalanuvchi botga qo'shildi. Hisobingizga **{REFERRAL_BONUS} so'm** qo'shildi.",
-                parse_mode="Markdown"
+        if db_result is None or db_result[0] is False:
+             await message.answer(
+                "❌ Uzr, ma'lumotlar bazasi bilan ulanishda xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring."
             )
-        except Exception:
-            pass
+             return
         
-    await message.answer(
-        WELCOME_TEXT, 
-        reply_markup=build_main_reply_keyboard(), 
-        parse_mode="Markdown"
-    )
+       
+        is_new_user = db_result[1] 
+        
+        if is_new_user and referrer_id is not None:
+            
+           
+            await db.add_balance(referrer_id, REFERRAL_BONUS)
+            
+            try:
+                await bot.send_message(
+                    referrer_id, 
+                    f"🎉 **Tabriklaymiz!** Siz taklif qilgan yangi foydalanuvchi botga qo'shildi. Hisobingizga **{REFERRAL_BONUS} so'm** qo'shildi.",
+                    parse_mode="Markdown"
+                )
+            except Exception:
+                pass
+        
+        await message.answer(
+            WELCOME_TEXT, 
+            reply_markup=build_main_reply_keyboard(), 
+            parse_mode="Markdown"
+        )
 
 async def set_default_commands(bot: Bot):
     commands = [

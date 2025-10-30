@@ -110,7 +110,7 @@ class Database:
             return (True, is_new_user)
             
         except Exception as e:
-            print(f"!!! CRITICAL DB ERROR: Failed to insert user {user_id}: {e}")
+            logging.error(f"!!! CRITICAL DB ERROR: Failed to insert user {user_id}: {e}", exc_info=True)
             return (False, False)
     
     async def get_user_balance(self, user_id: int) -> float | None:
