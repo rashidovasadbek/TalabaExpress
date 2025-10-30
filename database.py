@@ -121,11 +121,9 @@ class Database:
         sql = "SELECT balance FROM \"users\" WHERE telegram_id = $1"
         
         try:
-            # self.pool.fetchval faqat birinchi ustun qiymatini qaytaradi
-            balance = await self.pool.fetchval(sql, user_id)
             
-            # Agar baza None qaytarsa (foydalanuvchi yo'q), None uzatamiz.
-            # Agar Decimal qaytarsa, uni float ga o'tkazamiz.
+            balance = await self.pool.fetchval(sql, user_id)
+        
             if balance is not None:
                 return float(balance)
             return None
