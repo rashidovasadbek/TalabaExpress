@@ -8,6 +8,7 @@ from database import Database
 from dotenv import load_dotenv 
 from ai_service import GeminiService 
 from start import set_default_commands
+import logging
 
 load_dotenv() 
 
@@ -17,6 +18,8 @@ async def on_startup(bot: Bot):
 
     await set_default_commands(bot) 
     
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 async def main():
     
 
@@ -42,7 +45,7 @@ async def main():
     
     print("🚀 Bot ishga tushdi...")
     try:
-        await dp.start_polling(bot, db=db, ai_service=ai_service)
+        await dp.start_polling(bot, db=db, ai_service=ai_service, drop_pending_updates=True)
     finally:
         await bot.session.close()
     
