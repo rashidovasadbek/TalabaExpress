@@ -981,7 +981,7 @@ async def process_receipt_invalid(message: types.Message):
 REFERRAL_BONUS = 2000 
 
 @router.message(Command("start"))
-async def cmd_start(message: types.Message, bot: Bot, db: Database):
+async def cmd_start(message: types.Message, bot: Bot, db: Database, state:FSMContext):
     user_id = message.from_user.id
     username = message.from_user.username
     
@@ -996,7 +996,16 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database):
                     referrer_id = None
             except ValueError:
                 referrer_id = None
-    
+                
+    if referrer_id is not None:
+        await state.update_data(referrer_id=referrer_id)
+        
+    else:
+        data = await state.get_data()
+        session_referrer_id = data.get("referrer_id")
+        
+        if session_referrer_id is not None:
+            referrer_id = session_referrer_id
 
     not_joined = await check_user_subs(bot, user_id, db)
 
@@ -1042,29 +1051,6 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database):
             reply_markup=build_main_reply_keyboard(), 
             parse_mode="Markdown"
         )
-
-async def set_default_commands(bot: Bot):
-    commands = [
-            BotCommand(command="start", description="🚀 Botni ishga tushirish (Asosiy Menyu)"),
-            BotCommand(command="new", description="✍️ Yangi Referat/Mustaqil ish tayyorlash"),
-            BotCommand(command="buy", description="💸 Balansni tezkor to'ldirish (Narxlar)"),
-            BotCommand(command="chek", description="🧾 To'lov chekini yuborish va mablag'ni faollashtirish"), 
-            BotCommand(command="referral", description="🤝 Do'stlarni taklif qilish va pul ishlash"),
-        ]
-    await bot.set_my_commands(commands)
-    
-@router.message(Command("help"))
-async def command_help_handler(message: types.Message):
-    
-    await message.answer(
-        HELP_MESSAGE,
-        parse_mode="Markdown"
-    )
-
-@router.message(Command("new"))
-async def command_new_handler(message: types.Message,state: FSMContext, db: Database):
-    await state.clear() 
-    await cmd_start(message, state, db)
 
 @router.message(Command("referral"))
 async def command_referral_handler(message: types.Message, bot: Bot):
@@ -1118,6 +1104,29 @@ async def command_referral_handler(message: types.Message, bot: Bot):
         reply_markup=keyboard,
         parse_mode="Markdown"
     )
+
+async def set_default_commands(bot: Bot):
+    commands = [
+            BotCommand(command="start", description="🚀 Botni ishga tushirish (Asosiy Menyu)"),
+            BotCommand(command="new", description="✍️ Yangi Referat/Mustaqil ish tayyorlash"),
+            BotCommand(command="buy", description="💸 Balansni tezkor to'ldirish (Narxlar)"),
+            BotCommand(command="chek", description="🧾 To'lov chekini yuborish va mablag'ni faollashtirish"), 
+            BotCommand(command="referral", description="🤝 Do'stlarni taklif qilish va pul ishlash"),
+        ]
+    await bot.set_my_commands(commands)
+    
+@router.message(Command("help"))
+async def command_help_handler(message: types.Message):
+    
+    await message.answer(
+        HELP_MESSAGE,
+        parse_mode="Markdown"
+    )
+
+@router.message(Command("new"))
+async def command_new_handler(message: types.Message,state: FSMContext, db: Database):
+    await state.clear() 
+    await cmd_start(message, state, db)
 
 def get_help_contact_keyboard() -> types.InlineKeyboardMarkup:
 
