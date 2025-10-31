@@ -989,66 +989,52 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
     referrer_id = None
     referrer_id_from_message = None 
     
-    # 1. Message.text dan referral ID ni aniqlash (birinchi ustuvorlik)
+    # 1. Message.text dan referral ID ni aniqlash (BASE64 ni hisobga olgan holda)
     if message.text and len(message.text.split()) > 1:
         encoded_payload = message.text.split()[1]
         
-        # LOG: Kodlangan payloadni tekshiramiz
         logging.info(f"PAYLOAD_DETECTED: {user_id}. Payload: {encoded_payload}")
         
         try:
-            # 1a. BASE64 URL SAFE usulida koddan chiqarish (MUHIM TUZATISH!)
-            # Telegram uzun payloadlarni shunday kodlaydi. '==' Base64 padding uchun qo'shiladi.
+            # BASE64 Koddan chiqarish
             decoded_bytes = base64.urlsafe_b64decode(encoded_payload + '==') 
             payload = decoded_bytes.decode('utf-8')
-            
-            # LOG: Koddan chiqarilgan payloadni tekshiramiz
             logging.info(f"DECODED_PAYLOAD: {user_id}. Decoded: {payload}")
             
-            # 1b. Koddan chiqarilgan payloadni oddiy matndek ishlaymiz
+            # Koddan chiqarilgan payloadni ishlash
             if payload.startswith("ref_"):
                 referrer_id_from_message = int(payload.replace("ref_", ""))
-                
                 if referrer_id_from_message == user_id:
                     referrer_id_from_message = None
-                    
-            # 1c. Agar to'g'ridan-to'g'ri kodlanmagan ref_ kelgan bo'lsa (qisqa ID)
+            
+            # Agar kodlanmagan ref_ kelgan bo'lsa
             elif encoded_payload.startswith("ref_"):
                 referrer_id_from_message = int(encoded_payload.replace("ref_", ""))
                 if referrer_id_from_message == user_id:
                     referrer_id_from_message = None
-            
+                    
         except (ValueError, TypeError, base64.B64DecodeError) as e:
-            # Agar koddan chiqarishda yoki ID ga aylantirishda xato bo'lsa
             logging.warning(f"Referral ID parse error for {user_id}: {e}")
             referrer_id_from_message = None
 
     
-    # 2. REFERRER ID ni aniqlash. Xabardan kelgan ID ustuvor, aks holda FSMContext'dan olinadi.
-    
-    # Yangi ID topilgan bo'lsa, uni FSMContext ga saqlaymiz va asosiy referrer_id qilib o'rnatamiz
+    # 2. REFERRER ID ni yakuniy aniqlash
     if referrer_id_from_message is not None:
         await state.update_data(referrer_id=referrer_id_from_message)
         referrer_id = referrer_id_from_message
         
     else:
-        # Aks holda, FSM Context'dagi ilgari saqlangan ID ni tekshiramiz
         data = await state.get_data()
         referrer_id = data.get("referrer_id")
         
     
-    # LOG: Endi referrer_id to'g'ri qiymatga ega bo'lishi kerak.
     logging.info(f"START_HANDLER_ENTERED: {user_id}. Final Ref: {referrer_id}") 
     
     
-    # --- BAZAGA SAQLASH (Kanal Tekshiruvidan Oldin) ---
-    
-    # 3. ✅ FOYDALANUVCHINI BAZAGA SAQLASH/YANGLASH
+    # --- BAZAGA SAQLASH ---
     logging.info(f"DB_SAVE_INIT: {user_id} - Bazaga saqlash boshlanmoqda. Ref: {referrer_id}") 
     db_result = await db.get_or_create_user(user_id, username, referrer_id=referrer_id)
     
-    
-    # 4. DB Operatsiyasi Natijasini Tekshirish
     if db_result is None or db_result[0] is False:
         logging.error(f"CRITICAL DB ERROR: Foydalanuvchi {user_id} bazaga saqlanmadi/yangilanmadi!")
         await message.answer(
@@ -1060,23 +1046,25 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
     
     
     # --- KANALGA A'ZOLIK TEKSHIRUVI ---
-    
-    # 5. KANALGA A'ZOLIKNI TEKSHIRISH
     not_joined = await check_user_subs(bot, user_id, db)
 
     if not_joined:
-        # Foydalanuvchi bazada ALLAQACHON saqlangan, lekin kanallarga a'zo emas.
+        # Pul berish bloki o'tkazib yuboriladi
+        logging.info(f"CHANNEL_CHECK: {user_id} - A'zo emas. Pul berish o'tkazib yuborildi (return).")
         text = "📌 Siz quyidagi kanallarga a'zo bo'lishingiz kerak:\n\n"
         text += "\n".join([f"👉 {ch}" for ch in not_joined])
         await message.answer(text, reply_markup=get_channel_keyboard(not_joined))
-        return # Kanallarga a'zo bo'lishni so'rab funksiyadan chiqib ketamiz
+        return 
     
     
     # 6. ✅ Muvaffaqiyatli A'zolik va Referral Bonusi
     
-    # Pul berish mantiqini faqat bir marta ishlaydigan mantiqqa almashtirish tavsiya etiladi!
+    # Shu yerda muammo. Agar user 2-marta kelsa, is_new_user = False.
+    logging.info(f"BONUS_CHECK: {user_id} - is_new_user: {is_new_user}, referrer_id: {referrer_id}")
+
     if is_new_user and referrer_id is not None:
         
+        logging.info(f"BONUS_GRANTED: {user_id} - {referrer_id} ga {REFERRAL_BONUS} so'm berilmoqda.")
         # Referrer hisobiga pul qo'shish 
         await db.add_balance(referrer_id, REFERRAL_BONUS)
         
@@ -1087,8 +1075,13 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
                 f"🎉 **Tabriklaymiz!** Siz taklif qilgan yangi foydalanuvchi botga qo'shildi. Hisobingizga **{REFERRAL_BONUS} so'm** qo'shildi.",
                 parse_mode="Markdown"
             )
-        except Exception:
+            logging.info(f"MESSAGE_SENT: {referrer_id} ga bonus xabari yuborildi.")
+        except Exception as e:
+            logging.error(f"MESSAGE_FAIL: {referrer_id} ga xabar yuborilmadi: {e}")
             pass
+            
+    else:
+        logging.warning(f"BONUS_SKIPPED: {user_id} - Bonus berish sharti bajarilmadi. is_new_user: {is_new_user}, referrer_id: {referrer_id}")
         
     # 7. Asosiy Menyu
     await message.answer(
@@ -1096,7 +1089,7 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         reply_markup=build_main_reply_keyboard(), 
         parse_mode="Markdown"
     )
-
+    
 @router.message(Command("referral"))
 async def command_referral_handler(message: types.Message, bot: Bot):
     user_id = message.from_user.id
