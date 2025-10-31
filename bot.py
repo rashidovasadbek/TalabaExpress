@@ -45,7 +45,7 @@ async def main():
     
     print("🚀 Bot ishga tushdi...")
     try:
-        await dp.start_polling(bot, db=db, ai_service=ai_service, drop_pending_updates=True)
+        await dp.start_polling(bot, db=db, ai_service=ai_service)
     finally:
         await bot.session.close()
     
