@@ -23,6 +23,7 @@ import urllib.parse
 from aiogram.filters import StateFilter
 import logging
 import traceback
+import base64
 
 class UserGeneration(StatesGroup):
     choosing_language = State() 
@@ -984,58 +985,70 @@ REFERRAL_BONUS = 2000
 async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMContext):
     user_id = message.from_user.id
     username = message.from_user.username
-    print(user_id)
-    print(username)
     
     referrer_id = None
-    referrer_id_from_message = None # Message.text dan aniqlangan ID
+    referrer_id_from_message = None 
     
     # 1. Message.text dan referral ID ni aniqlash (birinchi ustuvorlik)
     if message.text and len(message.text.split()) > 1:
-        payload = message.text.split()[1]
-        logging.info(f"PAYLOAD_DETECTED: {user_id}. Payload: {payload}")
-        if payload.startswith("ref_"):
-            try:
-                
+        encoded_payload = message.text.split()[1]
+        
+        # LOG: Kodlangan payloadni tekshiramiz
+        logging.info(f"PAYLOAD_DETECTED: {user_id}. Payload: {encoded_payload}")
+        
+        try:
+            # 1a. BASE64 URL SAFE usulida koddan chiqarish (MUHIM TUZATISH!)
+            # Telegram uzun payloadlarni shunday kodlaydi. '==' Base64 padding uchun qo'shiladi.
+            decoded_bytes = base64.urlsafe_b64decode(encoded_payload + '==') 
+            payload = decoded_bytes.decode('utf-8')
+            
+            # LOG: Koddan chiqarilgan payloadni tekshiramiz
+            logging.info(f"DECODED_PAYLOAD: {user_id}. Decoded: {payload}")
+            
+            # 1b. Koddan chiqarilgan payloadni oddiy matndek ishlaymiz
+            if payload.startswith("ref_"):
                 referrer_id_from_message = int(payload.replace("ref_", ""))
-                print(referrer_id_from_message)
+                
                 if referrer_id_from_message == user_id:
                     referrer_id_from_message = None
-            except ValueError:
-                referrer_id_from_message = None
-                
+                    
+            # 1c. Agar to'g'ridan-to'g'ri kodlanmagan ref_ kelgan bo'lsa (qisqa ID)
+            elif encoded_payload.startswith("ref_"):
+                referrer_id_from_message = int(encoded_payload.replace("ref_", ""))
+                if referrer_id_from_message == user_id:
+                    referrer_id_from_message = None
+            
+        except (ValueError, TypeError, base64.B64DecodeError) as e:
+            # Agar koddan chiqarishda yoki ID ga aylantirishda xato bo'lsa
+            logging.warning(f"Referral ID parse error for {user_id}: {e}")
+            referrer_id_from_message = None
+
+    
     # 2. REFERRER ID ni aniqlash. Xabardan kelgan ID ustuvor, aks holda FSMContext'dan olinadi.
     
-    # Xabardan kelgan ID (agar mavjud bo'lsa) asosiy qiymat bo'ladi
-    referrer_id = referrer_id_from_message 
-    
-    # Agar xabarda ID bo'lmasa, FSM Context'dagi ilgari saqlangan ID ni tekshiramiz
-    if referrer_id is None:
-        data = await state.get_data()
-        referrer_id = data.get("referrer_id")
-        
-    # 3. Agar xabardan yangi referral ID topilgan bo'lsa, uni FSMContext ga saqlaymiz.
-    # Bu faqat message.text orqali kelganda saqlanadi.
+    # Yangi ID topilgan bo'lsa, uni FSMContext ga saqlaymiz va asosiy referrer_id qilib o'rnatamiz
     if referrer_id_from_message is not None:
         await state.update_data(referrer_id=referrer_id_from_message)
         referrer_id = referrer_id_from_message
+        
     else:
+        # Aks holda, FSM Context'dagi ilgari saqlangan ID ni tekshiramiz
         data = await state.get_data()
         referrer_id = data.get("referrer_id")
         
-    # LOG: Endi referrer_id har doim to'g'ri qiymatga ega bo'lishi kerak.
+    
+    # LOG: Endi referrer_id to'g'ri qiymatga ega bo'lishi kerak.
     logging.info(f"START_HANDLER_ENTERED: {user_id}. Final Ref: {referrer_id}") 
     
     
     # --- BAZAGA SAQLASH (Kanal Tekshiruvidan Oldin) ---
     
-    # 4. ✅ BIRINCHI QADAM: FOYDALANUVCHINI BAZAGA SAQLASH/YANGLASH
-    # db.get_or_create_user ichidagi COALESCE eski referrer_id ni saqlab qoladi.
+    # 3. ✅ FOYDALANUVCHINI BAZAGA SAQLASH/YANGLASH
     logging.info(f"DB_SAVE_INIT: {user_id} - Bazaga saqlash boshlanmoqda. Ref: {referrer_id}") 
     db_result = await db.get_or_create_user(user_id, username, referrer_id=referrer_id)
     
     
-    # 5. DB Operatsiyasi Natijasini Tekshirish
+    # 4. DB Operatsiyasi Natijasini Tekshirish
     if db_result is None or db_result[0] is False:
         logging.error(f"CRITICAL DB ERROR: Foydalanuvchi {user_id} bazaga saqlanmadi/yangilanmadi!")
         await message.answer(
@@ -1048,7 +1061,7 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
     
     # --- KANALGA A'ZOLIK TEKSHIRUVI ---
     
-    # 6. KANALGA A'ZOLIKNI TEKSHIRISH
+    # 5. KANALGA A'ZOLIKNI TEKSHIRISH
     not_joined = await check_user_subs(bot, user_id, db)
 
     if not_joined:
@@ -1059,12 +1072,12 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         return # Kanallarga a'zo bo'lishni so'rab funksiyadan chiqib ketamiz
     
     
-    # 7. ✅ Muvaffaqiyatli A'zolik va Referral Bonusi
+    # 6. ✅ Muvaffaqiyatli A'zolik va Referral Bonusi
     
-    # Pul berish mantiqini yuqoridagi 'is_new_user' va 'referrer_id' tekshiruvlari orqali amalga oshiramiz.
+    # Pul berish mantiqini faqat bir marta ishlaydigan mantiqqa almashtirish tavsiya etiladi!
     if is_new_user and referrer_id is not None:
         
-        # Referrer hisobiga pul qo'shish (faqat bir marta berishni ta'minlash muhim)
+        # Referrer hisobiga pul qo'shish 
         await db.add_balance(referrer_id, REFERRAL_BONUS)
         
         try:
@@ -1077,7 +1090,7 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         except Exception:
             pass
         
-    # 8. Asosiy Menyu
+    # 7. Asosiy Menyu
     await message.answer(
         WELCOME_TEXT, 
         reply_markup=build_main_reply_keyboard(), 
