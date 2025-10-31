@@ -1115,7 +1115,7 @@ async def command_referral_handler(message: types.Message, bot: Bot, db: Databas
     encoded_text = urllib.parse.quote_plus(share_message_text)
     share_url = f"https://t.me/share/url?url={encoded_text}"
 
-    invited_count, total_earned = await db.get_referral_stats(user_id, REFERRAL_BONUS)
+    invited_count, total_earned = await db.try_add_referral_bonus(user_id, REFERRAL_BONUS)
     
     referral_text = f"""
     🤝 **Dostlaringizni taklif qiling va bonular oling!** 💰
