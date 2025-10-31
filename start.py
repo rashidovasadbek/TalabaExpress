@@ -984,6 +984,8 @@ REFERRAL_BONUS = 2000
 async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMContext):
     user_id = message.from_user.id
     username = message.from_user.username
+    print(user_id)
+    print(username)
     
     referrer_id = None
     referrer_id_from_message = None # Message.text dan aniqlangan ID
@@ -991,9 +993,12 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
     # 1. Message.text dan referral ID ni aniqlash (birinchi ustuvorlik)
     if message.text and len(message.text.split()) > 1:
         payload = message.text.split()[1]
+        logging.info(f"PAYLOAD_DETECTED: {user_id}. Payload: {payload}")
         if payload.startswith("ref_"):
             try:
+                
                 referrer_id_from_message = int(payload.replace("ref_", ""))
+                print(referrer_id_from_message)
                 if referrer_id_from_message == user_id:
                     referrer_id_from_message = None
             except ValueError:
