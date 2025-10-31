@@ -981,10 +981,11 @@ async def process_receipt_invalid(message: types.Message):
 REFERRAL_BONUS = 2000 
 
 @router.message(Command("start"))
-async def cmd_start(message: types.Message, bot: Bot, db: Database, state:FSMContext):
+async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMContext):
     user_id = message.from_user.id
     username = message.from_user.username
     
+    # 1. REFERRAL ID ni aniqlash (State/FSM kontekstidan olish bilan)
     referrer_id = None
 
     if message.text and len(message.text.split()) > 1:
@@ -994,12 +995,15 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state:FSMCon
                 referrer_id = int(payload.replace("ref_", ""))
                 if referrer_id == user_id:
                     referrer_id = None
+                
+                # 1a. Yangi kelgan referral ID ni keyinchalik ishlatish uchun STATE ga saqlash
+                if referrer_id is not None:
+                     await state.update_data(referrer_id=referrer_id)
+                     
             except ValueError:
                 referrer_id = None
                 
-    if referrer_id is not None:
-        await state.update_data(referrer_id=referrer_id)
-        
+    # 1b. Agar xabarda referral ID bo'lmasa, uni STATE dan olishga urinish
     else:
         data = await state.get_data()
         session_referrer_id = data.get("referrer_id")
@@ -1007,60 +1011,73 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state:FSMCon
         if session_referrer_id is not None:
             referrer_id = session_referrer_id
 
+
+    # LOG: Cha-qiruvdan avvalgi holatni tekshirish
+    logging.info(f"START_HANDLER_ENTERED: {user_id}. Ref: {referrer_id}") 
+    
+    
+    # --- MUHIM TUZATISH: BAZAGA SAQLASHNI KANAL TEKSHIRUVIDAN OLDIN QO'YAMIZ ---
+    
+    # 2. ✅ BIRINCHI QADAM: FOYDALANUVCHINI BAZAGA SAQLASH/YANGLASH
+    # Bu referral ID ni ham yozishni ta'minlaydi, hatto kanalga a'zo bo'lmasa ham.
+    logging.info(f"DB_SAVE_INIT: {user_id} - Bazaga saqlash boshlanmoqda. Ref: {referrer_id}") 
+    db_result = await db.get_or_create_user(user_id, username, referrer_id=referrer_id)
+    
+    
+    # 3. DB Operatsiyasi Natijasini Tekshirish
+    if db_result is None or db_result[0] is False:
+        logging.error(f"CRITICAL DB ERROR: Foydalanuvchi {user_id} bazaga saqlanmadi/yangilanmadi!")
+        await message.answer(
+             "❌ Uzr, ma'lumotlar bazasi bilan ulanishda xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring."
+        )
+        return
+        
+    is_new_user = db_result[1] 
+    
+    # --------------------------------------------------------------------------
+    
+    
+    # 4. KANALGA A'ZOLIKNI TEKSHIRISH
     not_joined = await check_user_subs(bot, user_id, db)
 
     if not_joined:
+        # Foydalanuvchi bazada ALLAQACHON saqlangan, lekin kanallarga a'zo emas.
         text = "📌 Siz quyidagi kanallarga a'zo bo'lishingiz kerak:\n\n"
         text += "\n".join([f"👉 {ch}" for ch in not_joined])
         await message.answer(text, reply_markup=get_channel_keyboard(not_joined))
-    else:
-        logging.info(f"USER_SUBS_OK: {user_id} - Bazaga saqlash/yangilash boshlanmoqda. Ref: {referrer_id}")
+        return # Kanallarga a'zo bo'lishni so'rab funksiyadan chiqib ketamiz
+    
+    
+    # 5. ✅ Muvaffaqiyatli A'zolik va Referral Bonusi
+    
+    # Faqat yangi foydalanuvchi bo'lsa (db_result[1] = True) va referral ID mavjud bo'lsa bonus beriladi.
+    if is_new_user and referrer_id is not None:
         
-        db_result = await db.get_or_create_user(user_id, username, referrer_id=referrer_id)
-
-        if db_result is None:
-            logging.error(f"USER_DB_RESULT: {user_id} - Natija to'liq None qaytdi (Noma'lum xato).")
-        else:
-            logging.info(f"USER_DB_RESULT: {user_id} - Success: {db_result[0]}, New: {db_result[1]}.")
-      
-        if db_result is None or db_result[0] is False:
-             await message.answer(
-                "❌ Uzr, ma'lumotlar bazasi bilan ulanishda xatolik yuz berdi. Iltimos, keyinroq urinib ko'ring."
+        await db.add_balance(referrer_id, REFERRAL_BONUS)
+        
+        try:
+            await bot.send_message(
+                referrer_id, 
+                f"🎉 **Tabriklaymiz!** Siz taklif qilgan yangi foydalanuvchi botga qo'shildi. Hisobingizga **{REFERRAL_BONUS} so'm** qo'shildi.",
+                parse_mode="Markdown"
             )
-             return
+        except Exception:
+            pass
         
-       
-        is_new_user = db_result[1] 
-        
-        if is_new_user and referrer_id is not None:
-            
-           
-            await db.add_balance(referrer_id, REFERRAL_BONUS)
-            
-            try:
-                await bot.send_message(
-                    referrer_id, 
-                    f"🎉 **Tabriklaymiz!** Siz taklif qilgan yangi foydalanuvchi botga qo'shildi. Hisobingizga **{REFERRAL_BONUS} so'm** qo'shildi.",
-                    parse_mode="Markdown"
-                )
-            except Exception:
-                pass
-        
-        await message.answer(
-            WELCOME_TEXT, 
-            reply_markup=build_main_reply_keyboard(), 
-            parse_mode="Markdown"
-        )
+    # 6. Asosiy Menyu
+    await message.answer(
+        WELCOME_TEXT, 
+        reply_markup=build_main_reply_keyboard(), 
+        parse_mode="Markdown"
+    )
 
 @router.message(Command("referral"))
 async def command_referral_handler(message: types.Message, bot: Bot):
     user_id = message.from_user.id
-    bot_username = (await bot.get_me()).username # Botning username'ini olamiz
+    bot_username = (await bot.get_me()).username
     
-    # 1. Shaxsiy referal havolani yaratish
     personal_link = await create_start_link(bot, f"ref_{user_id}", encode=True) 
     
-    # 2. Taklif qilinadigan JODIY REKLAMA MATNI
     share_message_text = f"""
     📚 **TALABALIKNI OSONLASHTIR!** 🚀
     
@@ -1074,7 +1091,6 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     encoded_text = urllib.parse.quote_plus(share_message_text)
     share_url = f"https://t.me/share/url?url={encoded_text}"
 
-    # 4. Asosiy xabar va statistika
     referral_text = f"""
     🤝 **Dostlaringizni taklif qiling va bonular oling!** 💰
     
@@ -1088,17 +1104,15 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     * Jami daromad: **0** so'm
     """
     
-    # 5. Inline Klaviatura yaratish
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
                 text="🚀 Do'stga Xabarni Yuborish",
-                url=share_url # Ulashish (Share) havolasi
+                url=share_url 
             )
         ]
     ])
     
-    # 6. Yagona xabarni yuborish
     await message.answer(
         referral_text,
         reply_markup=keyboard,
