@@ -1013,7 +1013,10 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
     # Bu faqat message.text orqali kelganda saqlanadi.
     if referrer_id_from_message is not None:
         await state.update_data(referrer_id=referrer_id_from_message)
-        
+        referrer_id = referrer_id_from_message
+    else:
+        data = await state.get_data()
+        referrer_id = data.get("referrer_id")
         
     # LOG: Endi referrer_id har doim to'g'ri qiymatga ega bo'lishi kerak.
     logging.info(f"START_HANDLER_ENTERED: {user_id}. Final Ref: {referrer_id}") 
