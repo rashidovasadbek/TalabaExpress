@@ -19,3 +19,5 @@ CREATE TABLE transactions (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_transactions_user_id ON transactions (user_id);
+
+ALTER TABLE users ADD COLUMN referral_bonus_paid BOOLEAN DEFAULT FALSE;

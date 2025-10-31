@@ -82,6 +82,39 @@ class Database:
         user = await self.pool.fetchrow(sql, user_id)
         return user
     
+    async def try_add_referral_bonus(self, invited_user_id: int, referrer_id: int, bonus_amount: float) -> bool:
+        """
+            Referral bonusini berishga harakat qiladi. Faqat bonus hali berilmagan bo'lsa beradi.
+            Bu, a'zolik tekshiruvidan keyin 2-marta /start bosilganda ham pul berilishini ta'minlaydi.
+        """
+        sql = """
+        WITH new_user_update AS (
+            -- 1. Yangi qo'shilgan foydalanuvchining 'referral_bonus_paid' holatini yangilash
+            UPDATE users 
+            SET referral_bonus_paid = TRUE
+            WHERE telegram_id = $1  -- $1 = chaqirilgan foydalanuvchi (yangi a'zo)
+            AND referral_bonus_paid = FALSE 
+            RETURNING *
+        )
+        -- 2. Agar yangilanish bo'lsa (ya'ni bonus hali berilmagan bo'lsa), referrerga pul qo'shish
+        UPDATE users 
+        SET balance = balance + $3
+        WHERE telegram_id = $2 -- $2 = Referrer
+        AND EXISTS (SELECT 1 FROM new_user_update) -- Agar yuqorida biron qator yangilangan bo'lsa
+        RETURNING balance;
+        """
+    
+        try:
+            # $1: invited_user_id, $2: referrer_id, $3: bonus_amount
+            result = await self.pool.execute(sql, invited_user_id, referrer_id, bonus_amount) 
+            
+            # Agar pul qo'shish muvaffaqiyatli bo'lsa, 'UPDATE 1' yoki 'UPDATE 0 1' bo'lishi mumkin
+            return 'UPDATE 1' in result
+            
+        except Exception as e:
+            logging.error(f"Referral bonus berishda xato: {e}")
+            return False
+    
     async def get_or_create_user(self, user_id: int, username: str | None, referrer_id: int | None = None) -> tuple[bool, bool]:
         """
         Foydalanuvchini bazadan oladi. Agar mavjud bo'lmasa, uni yaratadi.

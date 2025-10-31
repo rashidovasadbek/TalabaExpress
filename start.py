@@ -989,14 +989,14 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
     referrer_id = None
     referrer_id_from_message = None 
     
-    # 1. Message.text dan referral ID ni aniqlash (BASE64 ni hisobga olgan holda)
+    # 1. Referral ID ni Message.text dan aniqlash (BASE64 kodlashni hisobga olgan holda)
     if message.text and len(message.text.split()) > 1:
         encoded_payload = message.text.split()[1]
         
         logging.info(f"PAYLOAD_DETECTED: {user_id}. Payload: {encoded_payload}")
         
         try:
-            # BASE64 Koddan chiqarish
+            # BASE64 URL SAFE usulida koddan chiqarish
             decoded_bytes = base64.urlsafe_b64decode(encoded_payload + '==') 
             payload = decoded_bytes.decode('utf-8')
             logging.info(f"DECODED_PAYLOAD: {user_id}. Decoded: {payload}")
@@ -1007,7 +1007,7 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
                 if referrer_id_from_message == user_id:
                     referrer_id_from_message = None
             
-            # Agar kodlanmagan ref_ kelgan bo'lsa
+            # Agar to'g'ridan-to'g'ri ref_ kelgan bo'lsa
             elif encoded_payload.startswith("ref_"):
                 referrer_id_from_message = int(encoded_payload.replace("ref_", ""))
                 if referrer_id_from_message == user_id:
@@ -1018,12 +1018,13 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
             referrer_id_from_message = None
 
     
-    # 2. REFERRER ID ni yakuniy aniqlash
+    # 2. REFERRER ID ni yakuniy aniqlash va FSMContext ga saqlash
     if referrer_id_from_message is not None:
         await state.update_data(referrer_id=referrer_id_from_message)
         referrer_id = referrer_id_from_message
         
     else:
+        # Aks holda, FSM Context'dagi ilgari saqlangan ID ni tekshiramiz
         data = await state.get_data()
         referrer_id = data.get("referrer_id")
         
@@ -1033,6 +1034,7 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
     
     # --- BAZAGA SAQLASH ---
     logging.info(f"DB_SAVE_INIT: {user_id} - Bazaga saqlash boshlanmoqda. Ref: {referrer_id}") 
+    # Bu funksiya avvalgi (NULL bo'lmagan) referrer_id ni COALESCE orqali saqlab qoladi
     db_result = await db.get_or_create_user(user_id, username, referrer_id=referrer_id)
     
     if db_result is None or db_result[0] is False:
@@ -1042,14 +1044,14 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         )
         return
         
-    is_new_user = db_result[1] 
+    # is_new_user = db_result[1] - Endi pul berishda ishlatilmaydi
     
     
     # --- KANALGA A'ZOLIK TEKSHIRUVI ---
     not_joined = await check_user_subs(bot, user_id, db)
 
     if not_joined:
-        # Pul berish bloki o'tkazib yuboriladi
+        # Foydalanuvchi kanalga a'zo emas
         logging.info(f"CHANNEL_CHECK: {user_id} - A'zo emas. Pul berish o'tkazib yuborildi (return).")
         text = "📌 Siz quyidagi kanallarga a'zo bo'lishingiz kerak:\n\n"
         text += "\n".join([f"👉 {ch}" for ch in not_joined])
@@ -1057,39 +1059,42 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         return 
     
     
-    # 6. ✅ Muvaffaqiyatli A'zolik va Referral Bonusi
+    # 3. ✅ Muvaffaqiyatli A'zolik va Referral Bonusi (MUHIM TUZATISH!)
     
-    # Shu yerda muammo. Agar user 2-marta kelsa, is_new_user = False.
-    logging.info(f"BONUS_CHECK: {user_id} - is_new_user: {is_new_user}, referrer_id: {referrer_id}")
+    # Pul berish mantiqi endi is_new_user ga emas, balki "bonus berilganmi?" ga bog'liq.
+    if referrer_id is not None:
+        
+        # db.try_add_referral_bonus funksiyasi pulni faqat bir marta beradi
+        bonus_added = await db.try_add_referral_bonus(user_id, referrer_id, REFERRAL_BONUS)
+        
+        logging.info(f"BONUS_CHECK: {user_id} - Pul berishga urinildi. Natija: {bonus_added}")
 
-    if is_new_user and referrer_id is not None:
-        
-        logging.info(f"BONUS_GRANTED: {user_id} - {referrer_id} ga {REFERRAL_BONUS} so'm berilmoqda.")
-        # Referrer hisobiga pul qo'shish 
-        await db.add_balance(referrer_id, REFERRAL_BONUS)
-        
-        try:
-            # Referrerga xabar yuborish
-            await bot.send_message(
-                referrer_id, 
-                f"🎉 **Tabriklaymiz!** Siz taklif qilgan yangi foydalanuvchi botga qo'shildi. Hisobingizga **{REFERRAL_BONUS} so'm** qo'shildi.",
-                parse_mode="Markdown"
-            )
-            logging.info(f"MESSAGE_SENT: {referrer_id} ga bonus xabari yuborildi.")
-        except Exception as e:
-            logging.error(f"MESSAGE_FAIL: {referrer_id} ga xabar yuborilmadi: {e}")
-            pass
+        if bonus_added:
+            logging.info(f"BONUS_GRANTED: {user_id} - {referrer_id} ga {REFERRAL_BONUS} so'm berildi.")
+            
+            try:
+                # Referrerga xabar yuborish
+                await bot.send_message(
+                    referrer_id, 
+                    f"🎉 **Tabriklaymiz!** Siz taklif qilgan yangi foydalanuvchi botga qo'shildi. Hisobingizga **{REFERRAL_BONUS} so'm** qo'shildi.",
+                    parse_mode="Markdown"
+                )
+                logging.info(f"MESSAGE_SENT: {referrer_id} ga bonus xabari yuborildi.")
+            except Exception as e:
+                logging.error(f"MESSAGE_FAIL: {referrer_id} ga xabar yuborilmadi: {e}")
+                pass
+        else:
+            logging.warning(f"BONUS_SKIPPED: {user_id} - Bonus allaqachon berilgan yoki DB operatsiyasi xato berdi.")
             
     else:
-        logging.warning(f"BONUS_SKIPPED: {user_id} - Bonus berish sharti bajarilmadi. is_new_user: {is_new_user}, referrer_id: {referrer_id}")
+        logging.warning(f"BONUS_SKIPPED: {user_id} - Referrer ID yo'q. Pul berish o'tkazib yuborildi.")
         
-    # 7. Asosiy Menyu
+    # 4. Asosiy Menyu
     await message.answer(
         WELCOME_TEXT, 
         reply_markup=build_main_reply_keyboard(), 
         parse_mode="Markdown"
     )
-    
 @router.message(Command("referral"))
 async def command_referral_handler(message: types.Message, bot: Bot):
     user_id = message.from_user.id
