@@ -107,22 +107,32 @@ def build_confirmation_keyboard() -> types.InlineKeyboardMarkup:
         ]
     ])
 
-async def  check_user_subs(bot: Bot, user_id: int, db:Database) -> list[str]:
+async def check_user_subs(bot: Bot, user_id: int, db:Database) -> list[str]:
     not_joined = []
-    channels = await db.get_channels()
+    # db.get_channels() bu yerda RAQAMLI ID lar (masalan, -100xxxxxxxxxx) yoki @usernamelarni qaytarishi kerak
+    channels = await db.get_channels() 
+    
     for ch_name in channels:
-        if not ch_name.startswith(('-', '@')):
-            channel_id = '@' + ch_name
-        else:
+        # channel_id ni tayyorlash
+        if ch_name.startswith('@') or ch_name.startswith('-'):
             channel_id = ch_name
+        else:
+            channel_id = '@' + ch_name # Agar DBda 'official_channel' kabi faqat nom bo'lsa
             
         try:
             member = await bot.get_chat_member(channel_id, user_id) 
             
-            if member.status not in["creator", "administrator", "member"]:
-                not_joined.append(ch_name)
+            # Tekshiruvni "yaxshi holatda emas" ga o'zgartirish
+            if member.status in ["left", "kicked"]:
+                 # Agar a'zo bo'lmasa, uni ro'yxatga qo'sh
+                 not_joined.append(ch_name)
+            
+            # Note: "member", "administrator", "creator" holatlari avtomatik o'tkazib yuboriladi
                 
-        except Exception:
+        except Exception as e:
+            # Agar bot.get_chat_member xato bersa (masalan, bot admin emas, yoki ID noto'g'ri)
+            # Bu yerda log yozib qo'yish juda muhim
+            print(f"ERROR: Kanal tekshiruvi xato berdi {ch_name}. Sabab: {e}") 
             not_joined.append(ch_name)
             
     return not_joined
