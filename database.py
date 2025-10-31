@@ -69,44 +69,51 @@ class Database:
                 key, new_value, description
             )
 
-   
-    async def get_referral_stats(self, user_id: int, referral_bonus: float) -> tuple[int, float]:
+
+    async def try_add_referral_bonus(self, invited_user_id: int, referrer_id: int, bonus_amount: float) -> bool:
         """
-        Foydalanuvchining referral statistikasini hisoblaydi.
+        Referral bonusini berishga harakat qiladi. Faqat bonus hali berilmagan bo'lsa beradi.
+        Bu avvalgi ikkita UPDATE operatsiyasini alohida yuritadi.
+        """
         
-        Args:
-            user_id: Referrerning Telegram IDsi.
-            referral_bonus: Har bir taklif uchun beriladigan bonus miqdori.
-            
-        Returns:
-            (total_invited_count, total_earned_sum)
-        """
-        sql = """
-        SELECT 
-            COUNT(telegram_id) AS invited_count,
-            -- referral_bonus_paid TRUE bo'lganlar sonini hisoblaymiz
-            COUNT(CASE WHEN referral_bonus_paid = TRUE THEN 1 END) AS paid_count
-        FROM users
-        WHERE referrer_id = $1;
-        """
-        try:
-            # Natija: {'invited_count': N, 'paid_count': M}
-            result = await self.pool.fetchrow(sql, user_id)
-            
-            if result:
-                invited_count = result['invited_count'] if result['invited_count'] is not None else 0
-                paid_count = result['paid_count'] if result['paid_count'] is not None else 0
+        # Biz Transaksiyadan foydalanamiz
+        async with self.pool.acquire() as connection:
+            async with connection.transaction():
                 
-                # Faqat bonusi berilganlar soniga ko'paytiramiz
-                total_earned_sum = paid_count * referral_bonus
+                # 1. Yangi userda referral_bonus_paid ni TRUE qilish va agar yangilangan bo'lsa, uni sanash
+                # Bu yerda biz necha qator yangilanganini tekshirish uchun execute ishlatamiz
+                update_new_user_result = await connection.execute(
+                    """
+                    UPDATE users 
+                    SET referral_bonus_paid = TRUE
+                    WHERE telegram_id = $1
+                    AND referrer_id IS NOT NULL -- Haqiqatan ham referreri bo'lishi kerak
+                    AND referral_bonus_paid = FALSE
+                    """,
+                    invited_user_id
+                )
                 
-                return (invited_count, total_earned_sum)
-            
-            return (0, 0.0)
-        
-        except Exception as e:
-            logging.error(f"Referral statistikasini olishda xato: {e}")
-            return (0, 0.0)
+                # Yangilangan qatorlar sonini olamiz ('UPDATE N' dan N ni)
+                rows_updated = int(update_new_user_result.split()[-1])
+                
+                # 2. Agar yangi userda biron narsa yangilangan bo'lsa (ya'ni bonus to'lanmagan bo'lsa), pulni qo'shamiz
+                if rows_updated == 1:
+                    await connection.execute(
+                        """
+                        UPDATE users 
+                        SET balance = balance + $2
+                        WHERE telegram_id = $1
+                        """,
+                        referrer_id, bonus_amount
+                    )
+                    logging.info(f"BONUS_SUCCESS: {invited_user_id} dan {referrer_id} ga {bonus_amount} qo'shildi.")
+                    return True
+                    
+                logging.warning(f"BONUS_FAIL: {invited_user_id} - {rows_updated} qator yangilandi. Bonus berilmadi.")
+                return False
+
+        # Bu yerga faqat Transaksiya xato bersa keladi
+        return False
     
     async def get_user(self, user_id: int):
         """

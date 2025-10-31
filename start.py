@@ -1117,10 +1117,6 @@ async def command_referral_handler(message: types.Message, bot: Bot, db: Databas
 
     invited_count, total_earned = await db.get_referral_stats(user_id, REFERRAL_BONUS)
     
-    BOT_USERNAME = "@talabaExpress_bot" 
-    referral_link = f"https://t.me/{BOT_USERNAME[1:]}?start=ref_{user_id}"
-    
-    
     referral_text = f"""
     🤝 **Dostlaringizni taklif qiling va bonular oling!** 💰
     
@@ -1128,9 +1124,6 @@ async def command_referral_handler(message: types.Message, bot: Bot, db: Databas
     ✨ **+{REFERRAL_BONUS} so'm qo'shiladi!** ✨
     
     ---
-    
-    **🔗 Sizning havolangiz:**
-        `{referral_link}`
         
         **📊 Statistikangiz:**
         * Taklif qilganlar: **{invited_count}** kishi
