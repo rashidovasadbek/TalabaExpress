@@ -985,46 +985,49 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
     user_id = message.from_user.id
     username = message.from_user.username
     
-    # 1. REFERRAL ID ni aniqlash (State/FSM kontekstidan olish bilan)
     referrer_id = None
-
+    referrer_id_from_message = None # Message.text dan aniqlangan ID
+    
+    # 1. Message.text dan referral ID ni aniqlash (birinchi ustuvorlik)
     if message.text and len(message.text.split()) > 1:
         payload = message.text.split()[1]
         if payload.startswith("ref_"):
             try:
-                referrer_id = int(payload.replace("ref_", ""))
-                if referrer_id == user_id:
-                    referrer_id = None
-                
-                # 1a. Yangi kelgan referral ID ni keyinchalik ishlatish uchun STATE ga saqlash
-                if referrer_id is not None:
-                     await state.update_data(referrer_id=referrer_id)
-                     
+                referrer_id_from_message = int(payload.replace("ref_", ""))
+                if referrer_id_from_message == user_id:
+                    referrer_id_from_message = None
             except ValueError:
-                referrer_id = None
+                referrer_id_from_message = None
                 
-    # 1b. Agar xabarda referral ID bo'lmasa, uni STATE dan olishga urinish
-    else:
+    # 2. REFERRER ID ni aniqlash. Xabardan kelgan ID ustuvor, aks holda FSMContext'dan olinadi.
+    
+    # Xabardan kelgan ID (agar mavjud bo'lsa) asosiy qiymat bo'ladi
+    referrer_id = referrer_id_from_message 
+    
+    # Agar xabarda ID bo'lmasa, FSM Context'dagi ilgari saqlangan ID ni tekshiramiz
+    if referrer_id is None:
         data = await state.get_data()
-        session_referrer_id = data.get("referrer_id")
+        referrer_id = data.get("referrer_id")
         
-        if session_referrer_id is not None:
-            referrer_id = session_referrer_id
-
-
-    # LOG: Cha-qiruvdan avvalgi holatni tekshirish
-    logging.info(f"START_HANDLER_ENTERED: {user_id}. Ref: {referrer_id}") 
+    # 3. Agar xabardan yangi referral ID topilgan bo'lsa, uni FSMContext ga saqlaymiz.
+    # Bu faqat message.text orqali kelganda saqlanadi.
+    if referrer_id_from_message is not None:
+        await state.update_data(referrer_id=referrer_id_from_message)
+        
+        
+    # LOG: Endi referrer_id har doim to'g'ri qiymatga ega bo'lishi kerak.
+    logging.info(f"START_HANDLER_ENTERED: {user_id}. Final Ref: {referrer_id}") 
     
     
-    # --- MUHIM TUZATISH: BAZAGA SAQLASHNI KANAL TEKSHIRUVIDAN OLDIN QO'YAMIZ ---
+    # --- BAZAGA SAQLASH (Kanal Tekshiruvidan Oldin) ---
     
-    # 2. ✅ BIRINCHI QADAM: FOYDALANUVCHINI BAZAGA SAQLASH/YANGLASH
-    # Bu referral ID ni ham yozishni ta'minlaydi, hatto kanalga a'zo bo'lmasa ham.
+    # 4. ✅ BIRINCHI QADAM: FOYDALANUVCHINI BAZAGA SAQLASH/YANGLASH
+    # db.get_or_create_user ichidagi COALESCE eski referrer_id ni saqlab qoladi.
     logging.info(f"DB_SAVE_INIT: {user_id} - Bazaga saqlash boshlanmoqda. Ref: {referrer_id}") 
     db_result = await db.get_or_create_user(user_id, username, referrer_id=referrer_id)
     
     
-    # 3. DB Operatsiyasi Natijasini Tekshirish
+    # 5. DB Operatsiyasi Natijasini Tekshirish
     if db_result is None or db_result[0] is False:
         logging.error(f"CRITICAL DB ERROR: Foydalanuvchi {user_id} bazaga saqlanmadi/yangilanmadi!")
         await message.answer(
@@ -1034,10 +1037,10 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         
     is_new_user = db_result[1] 
     
-    # --------------------------------------------------------------------------
     
+    # --- KANALGA A'ZOLIK TEKSHIRUVI ---
     
-    # 4. KANALGA A'ZOLIKNI TEKSHIRISH
+    # 6. KANALGA A'ZOLIKNI TEKSHIRISH
     not_joined = await check_user_subs(bot, user_id, db)
 
     if not_joined:
@@ -1048,14 +1051,16 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         return # Kanallarga a'zo bo'lishni so'rab funksiyadan chiqib ketamiz
     
     
-    # 5. ✅ Muvaffaqiyatli A'zolik va Referral Bonusi
+    # 7. ✅ Muvaffaqiyatli A'zolik va Referral Bonusi
     
-    # Faqat yangi foydalanuvchi bo'lsa (db_result[1] = True) va referral ID mavjud bo'lsa bonus beriladi.
+    # Pul berish mantiqini yuqoridagi 'is_new_user' va 'referrer_id' tekshiruvlari orqali amalga oshiramiz.
     if is_new_user and referrer_id is not None:
         
+        # Referrer hisobiga pul qo'shish (faqat bir marta berishni ta'minlash muhim)
         await db.add_balance(referrer_id, REFERRAL_BONUS)
         
         try:
+            # Referrerga xabar yuborish
             await bot.send_message(
                 referrer_id, 
                 f"🎉 **Tabriklaymiz!** Siz taklif qilgan yangi foydalanuvchi botga qo'shildi. Hisobingizga **{REFERRAL_BONUS} so'm** qo'shildi.",
@@ -1064,7 +1069,7 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         except Exception:
             pass
         
-    # 6. Asosiy Menyu
+    # 8. Asosiy Menyu
     await message.answer(
         WELCOME_TEXT, 
         reply_markup=build_main_reply_keyboard(), 
