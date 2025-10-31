@@ -69,13 +69,64 @@ class Database:
                 key, new_value, description
             )
 
+   
+    async def get_referral_stats(self, user_id: int, referral_bonus: float) -> tuple[int, float]:
+        """
+        Foydalanuvchining referral statistikasini hisoblaydi.
+        
+        Args:
+            user_id: Referrerning Telegram IDsi.
+            referral_bonus: Har bir taklif uchun beriladigan bonus miqdori.
+            
+        Returns:
+            (total_invited_count, total_earned_sum)
+        """
+        sql = """
+        SELECT 
+            COUNT(telegram_id) AS invited_count,
+            -- referral_bonus_paid TRUE bo'lganlar sonini hisoblaymiz
+            COUNT(CASE WHEN referral_bonus_paid = TRUE THEN 1 END) AS paid_count
+        FROM users
+        WHERE referrer_id = $1;
+        """
+        try:
+            # Natija: {'invited_count': N, 'paid_count': M}
+            result = await self.pool.fetchrow(sql, user_id)
+            
+            if result:
+                invited_count = result['invited_count'] if result['invited_count'] is not None else 0
+                paid_count = result['paid_count'] if result['paid_count'] is not None else 0
+                
+                # Faqat bonusi berilganlar soniga ko'paytiramiz
+                total_earned_sum = paid_count * referral_bonus
+                
+                return (invited_count, total_earned_sum)
+            
+            return (0, 0.0)
+        
+        except Exception as e:
+            logging.error(f"Referral statistikasini olishda xato: {e}")
+            return (0, 0.0)
+    
+    async def get_user(self, user_id: int):
+        """
+        Telegram ID bo'yicha foydalanuvchi ma'lumotlarini bazadan oladi.
+        :return: Foydalanuvchi obyekti (Masalan, dict/Record), yoki None.
+        """
 
+        sql = """
+        SELECT * FROM users WHERE telegram_id = $1
+        """
+        # pool.fetchrow faqat bir qatorni qaytaradi
+        user = await self.pool.fetchrow(sql, user_id)
+        return user
+    
     async def try_add_referral_bonus(self, invited_user_id: int, referrer_id: int, bonus_amount: float) -> bool:
         """
-        Referral bonusini berishga harakat qiladi. Faqat bonus hali berilmagan bo'lsa beradi.
-        Bu avvalgi ikkita UPDATE operatsiyasini alohida yuritadi.
+            Referral bonusini berishga harakat qiladi. Faqat bonus hali berilmagan bo'lsa beradi.
+            Bu avvalgi ikkita UPDATE operatsiyasini alohida yuritadi.
         """
-        
+    
         # Biz Transaksiyadan foydalanamiz
         async with self.pool.acquire() as connection:
             async with connection.transaction():
@@ -114,52 +165,6 @@ class Database:
 
         # Bu yerga faqat Transaksiya xato bersa keladi
         return False
-    
-    async def get_user(self, user_id: int):
-        """
-        Telegram ID bo'yicha foydalanuvchi ma'lumotlarini bazadan oladi.
-        :return: Foydalanuvchi obyekti (Masalan, dict/Record), yoki None.
-        """
-
-        sql = """
-        SELECT * FROM users WHERE telegram_id = $1
-        """
-        # pool.fetchrow faqat bir qatorni qaytaradi
-        user = await self.pool.fetchrow(sql, user_id)
-        return user
-    
-    async def try_add_referral_bonus(self, invited_user_id: int, referrer_id: int, bonus_amount: float) -> bool:
-        """
-            Referral bonusini berishga harakat qiladi. Faqat bonus hali berilmagan bo'lsa beradi.
-            Bu, a'zolik tekshiruvidan keyin 2-marta /start bosilganda ham pul berilishini ta'minlaydi.
-        """
-        sql = """
-        WITH new_user_update AS (
-            -- 1. Yangi qo'shilgan foydalanuvchining 'referral_bonus_paid' holatini yangilash
-            UPDATE users 
-            SET referral_bonus_paid = TRUE
-            WHERE telegram_id = $1  -- $1 = chaqirilgan foydalanuvchi (yangi a'zo)
-            AND referral_bonus_paid = FALSE 
-            RETURNING *
-        )
-        -- 2. Agar yangilanish bo'lsa (ya'ni bonus hali berilmagan bo'lsa), referrerga pul qo'shish
-        UPDATE users 
-        SET balance = balance + $3
-        WHERE telegram_id = $2 -- $2 = Referrer
-        AND EXISTS (SELECT 1 FROM new_user_update) -- Agar yuqorida biron qator yangilangan bo'lsa
-        RETURNING balance;
-        """
-    
-        try:
-            # $1: invited_user_id, $2: referrer_id, $3: bonus_amount
-            result = await self.pool.execute(sql, invited_user_id, referrer_id, bonus_amount) 
-            
-            # Agar pul qo'shish muvaffaqiyatli bo'lsa, 'UPDATE 1' yoki 'UPDATE 0 1' bo'lishi mumkin
-            return 'UPDATE 1' in result
-            
-        except Exception as e:
-            logging.error(f"Referral bonus berishda xato: {e}")
-            return False
     
     async def get_or_create_user(self, user_id: int, username: str | None, referrer_id: int | None = None) -> tuple[bool, bool]:
         """
