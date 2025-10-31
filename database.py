@@ -101,7 +101,7 @@ class Database:
             INSERT INTO users (telegram_id, username, balance, referrer_id) 
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (telegram_id) DO UPDATE 
-            SET username = $2,
+            SET username = EXCLUDED.username,
                 referrer_id = COALESCE(users.referrer_id, $4);
             """
         try:
