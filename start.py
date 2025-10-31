@@ -48,7 +48,7 @@ WELCOME_TEXT = (
     "• Prezentatsiyalar (PPTX) keyinchalik qo‘llanadi.\n"
     "• PDF (tez kunda) va boshqa formatlar keladi.\n\n"
     "⏳ Ayniqsa deadline yaqinlashganda juda qulay — bir necha daqiqada hujjat tayyorlanadi.\n\n"
-    "Unutmang: Agar siz yangi foydalanuvchi bo'lsangiz, sizga 10000 so'm boshlang'ich balans berildi!\n\n"
+    "Unutmang: Agar siz yangi foydalanuvchi bo'lsangiz, sizga 11000 so'm boshlang'ich balans berildi!\n\n"
     "Pastdagi tugmalardan birini tanlang:"
 )
 
@@ -1095,7 +1095,7 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         reply_markup=build_main_reply_keyboard(), 
         parse_mode="Markdown"
     )
-@router.message(Command("referral") | F.text == "🤝 Taklif")
+@router.message(Command("referral"))
 async def command_referral_handler(message: types.Message, bot: Bot, db: Database):
     user_id = message.from_user.id
     bot_username = (await bot.get_me()).username
