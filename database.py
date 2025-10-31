@@ -123,48 +123,51 @@ class Database:
     
     async def try_add_referral_bonus(self, invited_user_id: int, referrer_id: int, bonus_amount: float) -> bool:
         """
-            Referral bonusini berishga harakat qiladi. Faqat bonus hali berilmagan bo'lsa beradi.
-            Bu avvalgi ikkita UPDATE operatsiyasini alohida yuritadi.
+        Referral bonusini berishga harakat qiladi.
+        Transaksiya orqali yangi userda 'paid' ni True qilib, keyin referrerga pul qo'shadi.
         """
-    
+        
         # Biz Transaksiyadan foydalanamiz
         async with self.pool.acquire() as connection:
             async with connection.transaction():
-                
-                # 1. Yangi userda referral_bonus_paid ni TRUE qilish va agar yangilangan bo'lsa, uni sanash
-                # Bu yerda biz necha qator yangilanganini tekshirish uchun execute ishlatamiz
-                update_new_user_result = await connection.execute(
-                    """
-                    UPDATE users 
-                    SET referral_bonus_paid = TRUE
-                    WHERE telegram_id = $1
-                    AND referrer_id IS NOT NULL -- Haqiqatan ham referreri bo'lishi kerak
-                    AND referral_bonus_paid = FALSE
-                    """,
-                    invited_user_id
-                )
-                
-                # Yangilangan qatorlar sonini olamiz ('UPDATE N' dan N ni)
-                rows_updated = int(update_new_user_result.split()[-1])
-                
-                # 2. Agar yangi userda biron narsa yangilangan bo'lsa (ya'ni bonus to'lanmagan bo'lsa), pulni qo'shamiz
-                if rows_updated == 1:
-                    await connection.execute(
+                try:
+                    # 1. Yangi userda referral_bonus_paid ni TRUE qilish.
+                    # Natija: 'UPDATE N' (N - yangilangan qatorlar soni)
+                    update_result = await connection.execute(
                         """
                         UPDATE users 
-                        SET balance = balance + $2
+                        SET referral_bonus_paid = TRUE
                         WHERE telegram_id = $1
+                        AND referrer_id = $2 -- Referrer ID ham mos kelishini tekshirish foydali
+                        AND referral_bonus_paid = FALSE
                         """,
-                        referrer_id, bonus_amount
+                        invited_user_id, referrer_id 
                     )
-                    logging.info(f"BONUS_SUCCESS: {invited_user_id} dan {referrer_id} ga {bonus_amount} qo'shildi.")
-                    return True
                     
-                logging.warning(f"BONUS_FAIL: {invited_user_id} - {rows_updated} qator yangilandi. Bonus berilmadi.")
-                return False
-
-        # Bu yerga faqat Transaksiya xato bersa keladi
-        return False
+                    # Yangilangan qatorlar sonini to'g'ri ajratib olish. 
+                    # Agar natija 'UPDATE 1' bo'lsa, rows_updated = 1
+                    rows_updated = int(update_result.split()[-1])
+                    
+                    # 2. Agar yangi userda bitta qator yangilangan bo'lsa (ya'ni bonus to'lanmagan bo'lsa), pulni qo'shamiz
+                    if rows_updated == 1:
+                        await connection.execute(
+                            """
+                            UPDATE users 
+                            SET balance = balance + $2
+                            WHERE telegram_id = $1
+                            """,
+                            referrer_id, bonus_amount
+                        )
+                        logging.info(f"BONUS_SUCCESS: {invited_user_id} dan {referrer_id} ga {bonus_amount} so'm qo'shildi.")
+                        return True
+                        
+                    logging.warning(f"BONUS_FAIL: {invited_user_id} - Bonus allaqachon berilgan yoki shart bajarilmadi. Rows updated: {rows_updated}")
+                    return False
+                
+                except Exception as e:
+                    # Transaksiya xato bersa, avtomatik ravishda bekor qilinadi (rollback)
+                    logging.error(f"BONUS_CRITICAL_ERROR: Referral bonus berishda xato: {e}")
+                    return False
     
     async def get_or_create_user(self, user_id: int, username: str | None, referrer_id: int | None = None) -> tuple[bool, bool]:
         """
