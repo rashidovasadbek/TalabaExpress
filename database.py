@@ -69,6 +69,45 @@ class Database:
                 key, new_value, description
             )
 
+   
+    async def get_referral_stats(self, user_id: int, referral_bonus: float) -> tuple[int, float]:
+        """
+        Foydalanuvchining referral statistikasini hisoblaydi.
+        
+        Args:
+            user_id: Referrerning Telegram IDsi.
+            referral_bonus: Har bir taklif uchun beriladigan bonus miqdori.
+            
+        Returns:
+            (total_invited_count, total_earned_sum)
+        """
+        sql = """
+        SELECT 
+            COUNT(telegram_id) AS invited_count,
+            -- referral_bonus_paid TRUE bo'lganlar sonini hisoblaymiz
+            COUNT(CASE WHEN referral_bonus_paid = TRUE THEN 1 END) AS paid_count
+        FROM users
+        WHERE referrer_id = $1;
+        """
+        try:
+            # Natija: {'invited_count': N, 'paid_count': M}
+            result = await self.pool.fetchrow(sql, user_id)
+            
+            if result:
+                invited_count = result['invited_count'] if result['invited_count'] is not None else 0
+                paid_count = result['paid_count'] if result['paid_count'] is not None else 0
+                
+                # Faqat bonusi berilganlar soniga ko'paytiramiz
+                total_earned_sum = paid_count * referral_bonus
+                
+                return (invited_count, total_earned_sum)
+            
+            return (0, 0.0)
+        
+        except Exception as e:
+            logging.error(f"Referral statistikasini olishda xato: {e}")
+            return (0, 0.0)
+    
     async def get_user(self, user_id: int):
         """
         Telegram ID bo'yicha foydalanuvchi ma'lumotlarini bazadan oladi.

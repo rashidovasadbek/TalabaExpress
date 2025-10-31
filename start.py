@@ -1095,8 +1095,8 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
         reply_markup=build_main_reply_keyboard(), 
         parse_mode="Markdown"
     )
-@router.message(Command("referral"))
-async def command_referral_handler(message: types.Message, bot: Bot):
+@router.message(Command("referral") | F.text == "🤝 Taklif")
+async def command_referral_handler(message: types.Message, bot: Bot, db: Database):
     user_id = message.from_user.id
     bot_username = (await bot.get_me()).username
     
@@ -1107,7 +1107,7 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     
     Men ajoyib botni topdim! {bot_username} — referat, mustaqil ish va taqdimotlarni (DOCX/PPTX) bir necha daqiqada tayyorlaydi.
     
-    🎁 Sizga ham **+10000 so'm** boshlang'ich bonus beriladi!
+    🎁 Sizga ham **+11000 so'm** boshlang'ich bonus beriladi!
     
     Qo'shilish uchun: {personal_link}
     """
@@ -1115,6 +1115,12 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     encoded_text = urllib.parse.quote_plus(share_message_text)
     share_url = f"https://t.me/share/url?url={encoded_text}"
 
+    invited_count, total_earned = await db.get_referral_stats(user_id, REFERRAL_BONUS)
+    
+    BOT_USERNAME = "@talabaExpress_bot" 
+    referral_link = f"https://t.me/{BOT_USERNAME[1:]}?start=ref_{user_id}"
+    
+    
     referral_text = f"""
     🤝 **Dostlaringizni taklif qiling va bonular oling!** 💰
     
@@ -1123,9 +1129,12 @@ async def command_referral_handler(message: types.Message, bot: Bot):
     
     ---
     
-    **📊 Statistikangiz:**
-    * Taklif qilganlar: **0** kishi
-    * Jami daromad: **0** so'm
+    **🔗 Sizning havolangiz:**
+        `{referral_link}`
+        
+        **📊 Statistikangiz:**
+        * Taklif qilganlar: **{invited_count}** kishi
+        * Jami daromad: **{total_earned:,.0f}** so'm 
     """
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
