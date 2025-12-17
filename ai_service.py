@@ -111,7 +111,7 @@ class GeminiService:
             response_schema=chart_schema
         )
 
-        model_name = "gemini-2.5-flash-preview-05-20"
+        model_name = "gemini-3-flash"
         # Yangi, toʻgʻri qator:
         contents = [types.Content(parts=[types.Part(text=user_query)])]
 
