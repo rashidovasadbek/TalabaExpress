@@ -15,66 +15,39 @@ from google.genai.errors import APIError
 from dotenv import load_dotenv
 
 class GeminiService:
-    """
-    Gemini AI bilan aloqa qilish uchun xizmat sinfi.
-    """
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    load_dotenv(os.path.join(base_dir, '.env'))
     def __init__(self):
-        # 1. .env dan kalitlarni ro'yxatga olamiz
-        self.api_keys = [
-            os.getenv("GEMINI_API_KEY_1"),
-            os.getenv("GEMINI_API_KEY_2"),
-            os.getenv("GEMINI_API_KEY_3")
+        # Systemd EnvironmentFile yoki .env dan o'qish
+        keys = [
+            os.environ.get("GEMINI_API_KEY_1"),
+            os.environ.get("GEMINI_API_KEY_2"),
+            os.environ.get("GEMINI_API_KEY_3")
         ]
         
-        # Faqat mavjud (bo'sh bo'lmagan) kalitlarni qoldiramiz
-        self.api_keys = [k for k in self.api_keys if k]
+        self.api_keys = [k for k in keys if k]
         
         if not self.api_keys:
-            raise ValueError("❌ .env faylida API kalitlar topilmadi! GEMINI_API_KEY_1 va h.k. mavjudligini tekshiring.")
+            # DEBUG: Nima uchun topilmayotganini bilish uchun
+            print(f"DEBUG: OS ENV keys: {list(os.environ.keys())}")
+            raise ValueError("❌ API kalitlari topilmadi! GEMINI_API_KEY_1 ni tekshiring.")
 
-        self.current_key_index = 0
-        self.model_name = 'gemini-1.5-flash'
+        self.current_index = 0
         self.setup_client()
 
     def setup_client(self):
-        """Hozirgi kalit bilan yangi client yaratish"""
-        current_key = self.api_keys[self.current_key_index]
-        self.client = genai.Client(api_key=current_key)
-        print(f"✅ Akkaunt #{self.current_key_index + 1} faollashtirildi.")
-
-    def generate_content(self, prompt, config_type="default"):
-        """Limitlarni tekshirib, kalitlarni aylantiruvchi asosiy funksiya"""
-        
-        config = types.GenerateContentConfig(temperature=0.7)
-        if config_type == "content":
-            config = types.GenerateContentConfig(temperature=0.2, max_output_tokens=6500)
-
-        # Kalitlar soni bo'yicha urinib ko'ramiz
-        for _ in range(len(self.api_keys)):
-            try:
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=prompt,
-                    config=config
-                )
-                return response
+        # Eskisini yopib, yangisini ochish (xatolikni oldini olish uchun)
+        try:
+            if hasattr(self, 'client'):
+                del self.client
+        except:
+            pass
             
-            except APIError as e:
-                # 429 - Limit tugaganda ishga tushadi
-                print(f"⚠️ Akkaunt #{self.current_key_index + 1} limiti tugadi.")
-                
-                # Keyingi kalitga o'tish
-                self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
-                self.setup_client()
-                print("🔄 Keyingi akkauntga o'tilmoqda...")
-                continue 
-                
-            except Exception as e:
-                return f"❌ Kutilmagan xatolik: {str(e)}"
-        
-        return "‼️ Barcha akkauntlarda limit tugadi. Bir oz kuting."
+        current_key = self.api_keys[self.current_index]
+        # MUHIM: API kalit borligini yana bir bor tekshiramiz
+        if not current_key:
+             raise ValueError("API Key is empty!")
+             
+        self.client = genai.Client(api_key=current_key)
+        print(f"✅ Gemini Akkaunt #{self.current_index + 1} ishga tushdi.")
 
 
     def _clean_and_split_list(self, text: str) -> list:
