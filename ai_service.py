@@ -18,6 +18,8 @@ class GeminiService:
     """
     Gemini AI bilan aloqa qilish uchun xizmat sinfi.
     """
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    load_dotenv(os.path.join(base_dir, '.env'))
     def __init__(self):
         # 1. .env dan kalitlarni ro'yxatga olamiz
         self.api_keys = [
