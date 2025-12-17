@@ -9,25 +9,71 @@ from google.genai.errors import APIError
 from google.genai.types import Schema, Type 
 import asyncio
 import json
-
+import google.genai as genai
+from google.genai import types
+from google.genai.errors import APIError
+from dotenv import load_dotenv
 
 class GeminiService:
     """
     Gemini AI bilan aloqa qilish uchun xizmat sinfi.
     """
     def __init__(self):
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key and not os.environ.get("__initial_auth_token"):
-             print("⚠️ GEMINI_API_KEY o'rnatilmagan, lekin bu Canvas muhitida normal holat bo'lishi mumkin.")
-        elif not api_key:
-             # Agar API kaliti yo'q bo'lsa, xato yuzaga kelmasligi uchun joylashtiramiz.
-             # Canvas o'zi kalitni ta'minlaydi.
-             api_key = os.environ.get("__initial_auth_token")
+        # 1. .env dan kalitlarni ro'yxatga olamiz
+        self.api_keys = [
+            os.getenv("GEMINI_API_KEY_1"),
+            os.getenv("GEMINI_API_KEY_2"),
+            os.getenv("GEMINI_API_KEY_3")
+        ]
+        
+        # Faqat mavjud (bo'sh bo'lmagan) kalitlarni qoldiramiz
+        self.api_keys = [k for k in self.api_keys if k]
+        
+        if not self.api_keys:
+            raise ValueError("❌ .env faylida API kalitlar topilmadi! GEMINI_API_KEY_1 va h.k. mavjudligini tekshiring.")
 
-        self.client = genai.Client(api_key=api_key)
-        self.model = 'gemini-1.5-flash' # Yana bir bor 'lite' modelini sinab ko'ramiz
-        self.default_config = types.GenerateContentConfig(temperature=0.7)
-        self.content_config = types.GenerateContentConfig(temperature=0.2, max_output_tokens=6500)
+        self.current_key_index = 0
+        self.model_name = 'gemini-1.5-flash'
+        self.setup_client()
+
+    def setup_client(self):
+        """Hozirgi kalit bilan yangi client yaratish"""
+        current_key = self.api_keys[self.current_key_index]
+        self.client = genai.Client(api_key=current_key)
+        print(f"✅ Akkaunt #{self.current_key_index + 1} faollashtirildi.")
+
+    def generate_content(self, prompt, config_type="default"):
+        """Limitlarni tekshirib, kalitlarni aylantiruvchi asosiy funksiya"""
+        
+        config = types.GenerateContentConfig(temperature=0.7)
+        if config_type == "content":
+            config = types.GenerateContentConfig(temperature=0.2, max_output_tokens=6500)
+
+        # Kalitlar soni bo'yicha urinib ko'ramiz
+        for _ in range(len(self.api_keys)):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=config
+                )
+                return response
+            
+            except APIError as e:
+                # 429 - Limit tugaganda ishga tushadi
+                print(f"⚠️ Akkaunt #{self.current_key_index + 1} limiti tugadi.")
+                
+                # Keyingi kalitga o'tish
+                self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
+                self.setup_client()
+                print("🔄 Keyingi akkauntga o'tilmoqda...")
+                continue 
+                
+            except Exception as e:
+                return f"❌ Kutilmagan xatolik: {str(e)}"
+        
+        return "‼️ Barcha akkauntlarda limit tugadi. Bir oz kuting."
+
 
     def _clean_and_split_list(self, text: str) -> list:
         """
