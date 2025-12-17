@@ -25,7 +25,7 @@ class GeminiService:
              api_key = os.environ.get("__initial_auth_token")
 
         self.client = genai.Client(api_key=api_key)
-        self.model = 'gemini-2.5-flash' # Yana bir bor 'lite' modelini sinab ko'ramiz
+        self.model = 'gemini-2.5-flash-tts' # Yana bir bor 'lite' modelini sinab ko'ramiz
         self.default_config = types.GenerateContentConfig(temperature=0.7)
         self.content_config = types.GenerateContentConfig(temperature=0.2, max_output_tokens=6500)
 
