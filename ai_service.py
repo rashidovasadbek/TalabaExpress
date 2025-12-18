@@ -15,52 +15,39 @@ from google.genai.errors import APIError
 from dotenv import load_dotenv
 
 class GeminiService:
-    import os
-import google.genai as genai
-from dotenv import load_dotenv
-
-# .env faylini yuklash (bu juda muhim!)
-load_dotenv()
-
-class AIService:
     def __init__(self):
-        # Kalitlarni yig'amiz
         keys = [
             os.environ.get("GEMINI_API_KEY_1"),
             os.environ.get("GEMINI_API_KEY_2"),
             os.environ.get("GEMINI_API_KEY_3")
         ]
-        
         self.api_keys = [k for k in keys if k]
         
         if not self.api_keys:
-            raise ValueError("❌ API kalitlari topilmadi! .env faylini tekshiring.")
+            raise ValueError("❌ API kalitlari topilmadi!")
 
-        # MODEL NOMINI SHU YERDA BIR MARTA BELGILAYMIZ
         self.model_name = "gemini-2.5-flash"
         self.current_index = 0
         self.setup_client()
 
     def setup_client(self):
-        """Clientni joriy kalit bilan yangilash"""
-        try:
-            current_key = self.api_keys[self.current_index]
-            self.client = genai.Client(api_key=current_key)
-            print(f"✅ Gemini Akkaunt #{self.current_index + 1} ishga tushdi. Model: {self.model_name}")
-        except Exception as e:
-            print(f"❌ Client sozlashda xato: {e}")
+        current_key = self.api_keys[self.current_index]
+        self.client = genai.Client(api_key=current_key)
+        print(f"✅ Gemini Akkaunt #{self.current_index + 1} ishga tushdi.")
 
     def rotate_key(self):
-        """Agar limit tugasa, keyingi kalitga o'tish"""
         self.current_index = (self.current_index + 1) % len(self.api_keys)
-        print(f"🔄 Limit tugadi. Keyingi kalitga o'tilmoqda: #{self.current_index + 1}")
         self.setup_client()
 
+    # START.PY QIDIRAYOTGAN ASOSIY METOD
+    async def generate_title_page_content(self, topic, lang='uz'):
+        prompt = f"Mavzu: {topic}. Ushbu mavzu uchun muqova sahifasi ma'lumotlarini tayyorlab ber."
+        return await self.get_gemini_response(prompt)
+
+    # UMUMIY JAVOB OLISH METODI
     async def get_gemini_response(self, prompt):
-        """Botdan javob olish funksiyasi"""
-        for _ in range(len(self.api_keys)): # Har bir kalitni sinab ko'radi
+        for _ in range(len(self.api_keys)):
             try:
-                # MUHIM: model=self.model_name shu yerda ishlatilishi shart!
                 response = self.client.models.generate_content(
                     model=self.model_name,
                     contents=prompt
@@ -68,9 +55,8 @@ class AIService:
                 return response.text
             except Exception as e:
                 print(f"⚠️ Kalit #{self.current_index + 1}da xato: {e}")
-                self.rotate_key() # Xato bo'lsa keyingisiga o'tadi
-                
-        return "Kechirasiz, barcha AI kalitlarida limit tugadi. Birozdan so'ng urinib ko'ring."
+                self.rotate_key()
+        return "Limit tugadi."
 
 
     def _clean_and_split_list(self, text: str) -> list:
