@@ -30,6 +30,7 @@ class GeminiService:
             print(f"DEBUG: OS ENV keys: {list(os.environ.keys())}")
             raise ValueError("❌ API kalitlari topilmadi! GEMINI_API_KEY_1 ni tekshiring.")
 
+
         self.current_index = 0
         self.setup_client()
 
