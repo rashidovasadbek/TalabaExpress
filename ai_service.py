@@ -15,8 +15,16 @@ from google.genai.errors import APIError
 from dotenv import load_dotenv
 
 class GeminiService:
+    import os
+import google.genai as genai
+from dotenv import load_dotenv
+
+# .env faylini yuklash (bu juda muhim!)
+load_dotenv()
+
+class AIService:
     def __init__(self):
-        # Systemd EnvironmentFile yoki .env dan o'qish
+        # Kalitlarni yig'amiz
         keys = [
             os.environ.get("GEMINI_API_KEY_1"),
             os.environ.get("GEMINI_API_KEY_2"),
@@ -26,29 +34,43 @@ class GeminiService:
         self.api_keys = [k for k in keys if k]
         
         if not self.api_keys:
-            # DEBUG: Nima uchun topilmayotganini bilish uchun
-            print(f"DEBUG: OS ENV keys: {list(os.environ.keys())}")
-            raise ValueError("❌ API kalitlari topilmadi! GEMINI_API_KEY_1 ni tekshiring.")
+            raise ValueError("❌ API kalitlari topilmadi! .env faylini tekshiring.")
 
-
+        # MODEL NOMINI SHU YERDA BIR MARTA BELGILAYMIZ
+        self.model_name = "gemini-2.5-flash"
         self.current_index = 0
         self.setup_client()
 
     def setup_client(self):
-        # Eskisini yopib, yangisini ochish (xatolikni oldini olish uchun)
+        """Clientni joriy kalit bilan yangilash"""
         try:
-            if hasattr(self, 'client'):
-                del self.client
-        except:
-            pass
-            
-        current_key = self.api_keys[self.current_index]
-        # MUHIM: API kalit borligini yana bir bor tekshiramiz
-        if not current_key:
-             raise ValueError("API Key is empty!")
-             
-        self.client = genai.Client(api_key=current_key)
-        print(f"✅ Gemini Akkaunt #{self.current_index + 1} ishga tushdi.")
+            current_key = self.api_keys[self.current_index]
+            self.client = genai.Client(api_key=current_key)
+            print(f"✅ Gemini Akkaunt #{self.current_index + 1} ishga tushdi. Model: {self.model_name}")
+        except Exception as e:
+            print(f"❌ Client sozlashda xato: {e}")
+
+    def rotate_key(self):
+        """Agar limit tugasa, keyingi kalitga o'tish"""
+        self.current_index = (self.current_index + 1) % len(self.api_keys)
+        print(f"🔄 Limit tugadi. Keyingi kalitga o'tilmoqda: #{self.current_index + 1}")
+        self.setup_client()
+
+    async def get_gemini_response(self, prompt):
+        """Botdan javob olish funksiyasi"""
+        for _ in range(len(self.api_keys)): # Har bir kalitni sinab ko'radi
+            try:
+                # MUHIM: model=self.model_name shu yerda ishlatilishi shart!
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt
+                )
+                return response.text
+            except Exception as e:
+                print(f"⚠️ Kalit #{self.current_index + 1}da xato: {e}")
+                self.rotate_key() # Xato bo'lsa keyingisiga o'tadi
+                
+        return "Kechirasiz, barcha AI kalitlarida limit tugadi. Birozdan so'ng urinib ko'ring."
 
 
     def _clean_and_split_list(self, text: str) -> list:
