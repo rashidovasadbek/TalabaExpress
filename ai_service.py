@@ -25,7 +25,7 @@ class GeminiService:
         self.client = genai.Client(api_key=api_key)
         
         # 3. Modelni tanlash (Tezlik va sifat uchun)
-        self.model = 'gemini-2.5-flash-lite' 
+        self.model = 'gemini-3-flash' 
         self.content_config = {
         "temperature": 0.7,
         "max_output_tokens": 8192,
