@@ -21,7 +21,7 @@ class GeminiService:
             raise ValueError("❌ GEMINI_API_KEY_1 topilmadi!")
 
         # Model sozlamalari
-        self.model = "gemini-2.0-flash"
+        self.model = "gemini-1.5-flash"
         self.client = genai.Client(api_key=self.api_key)
         
         # Generatsiya konfiguratsiyasi (Hajm va kreativlikni nazorat qilish uchun)
