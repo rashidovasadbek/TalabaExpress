@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 class GeminiService:
     def __init__(self):
-        self.api_key = os.environ.get("GEMINI_API_KEY_1")
+        self.api_key = os.environ.get("GEMINI_API_KEY_2")
         if not self.api_key:
             raise ValueError("❌ GEMINI_API_KEY_1 topilmadi!")
 
