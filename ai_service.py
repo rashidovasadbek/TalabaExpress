@@ -653,7 +653,7 @@ class GeminiService:
                     # Har safar kutish vaqtini oshiramiz (masalan, 2, 4 soniya)
                     await asyncio.sleep(2 * (attempt + 1)) 
                 else:
-                    return "Asosiy bob matnini generatsiya qilishda xato yuz berdi." # Oxirgi urinishda ham xato bo'lsa
+                    return " 3 marta urinishdan Asosiy bob matnini generatsiya qilishda xato yuz berdi.........." # Oxirgi urinishda ham xato bo'lsa
         
         return "Asosiy bob matnini generatsiya qilishda xato yuz berdi." 
 
