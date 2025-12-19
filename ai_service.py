@@ -38,7 +38,7 @@ class GeminiService:
         # Generatsiya sozlamalari
         config = types.GenerateContentConfig(
             # Maksimal chiqish belgilar sonini belgilash (uzun referat uchun yetarli)
-            max_output_tokens=6096, 
+            max_output_tokens=4096, 
             # Harorat (Ijodkorlik darajasi): 0.7 optimal tanlov
             temperature=0.7, 
         )
