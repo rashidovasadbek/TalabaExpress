@@ -25,7 +25,7 @@ class GeminiService:
         self.client = genai.Client(api_key=api_key)
         
         # 3. Modelni tanlash (Tezlik va sifat uchun)
-        self.model = 'gemini-2.5-flash' 
+        self.model = 'gemini-robotics-er-1.5-preview' 
         
     async def generate_text(self, prompt: str) -> str:
         """
@@ -38,7 +38,7 @@ class GeminiService:
         # Generatsiya sozlamalari
         config = types.GenerateContentConfig(
             # Maksimal chiqish belgilar sonini belgilash (uzun referat uchun yetarli)
-            max_output_tokens=4096, 
+            max_output_tokens=8192, 
             # Harorat (Ijodkorlik darajasi): 0.7 optimal tanlov
             temperature=0.7, 
         )
@@ -553,6 +553,9 @@ class GeminiService:
     
     async def generate_section_content(self, topic: str, main_title: str, work_type: str, lang:str, min_page_count :int, sub_titles_list: list[str], page_count:int , main_sections_count: int) -> str:
         print(f"max{page_count}\n min{min_page_count}")
+        max_word_count = (page_count * 300) // (main_sections_count or 1)
+        min_word_count = (min_page_count * 200) // (main_sections_count or 1)
+        
         if main_sections_count == 2:
             if page_count == 15 and min_page_count == 10:
                 max_word_count = (page_count - 5) * 200
