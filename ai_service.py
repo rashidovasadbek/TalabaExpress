@@ -30,43 +30,6 @@ class GeminiService:
         "temperature": 0.7,
         "max_output_tokens": 8192,
     }
-        
-    async def generate_text(self, prompt: str) -> str:
-        """
-        Berilgan prompt asosida matn generatsiya qiladi.
-        
-        :param prompt: AI ga yuboriladigan yakuniy prompt matni.
-        :return: Generatsiya qilingan matn yoki xato xabari.
-        """
-        
-        # Generatsiya sozlamalari
-        config = types.GenerateContentConfig(
-            # Maksimal chiqish belgilar sonini belgilash (uzun referat uchun yetarli)
-            max_output_tokens=8192, 
-            # Harorat (Ijodkorlik darajasi): 0.7 optimal tanlov
-            temperature=0.7, 
-        )
-        
-        try:
-            # Gemini client sinxron ishlaydi, shuning uchun uni asyncio.to_thread orqali
-            # alohida ish zanjirida (thread) ishga tushiramiz.
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=self.model,
-                contents=prompt,
-                config=config,
-            )
-            
-            # Matnni qaytarish. Agar model javob bermasa, "Matn mavjud emas" xabari beriladi.
-            if response.text:
-                return response.text
-            else:
-                return "Xatolik: AI javobi matnni o'z ichiga olmadi."
-            
-        except Exception as e:
-            print(f"Gemini API xatosi: {e}")
-            return f"Xatolik: Matnni generatsiya qilishda xato yuz berdi. Iltimos, ma'lumotlarni tekshirib qayta urinib ko'ring. Batafsil xato: {e}"
-
 
     def _clean_and_split_list(self, text: str) -> list:
         """
