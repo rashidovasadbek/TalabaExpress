@@ -26,6 +26,10 @@ class GeminiService:
         
         # 3. Modelni tanlash (Tezlik va sifat uchun)
         self.model = 'gemini-1.5-flash' 
+        self.content_config = {
+        "temperature": 0.7,
+        "max_output_tokens": 8192,
+    }
         
     async def generate_text(self, prompt: str) -> str:
         """
