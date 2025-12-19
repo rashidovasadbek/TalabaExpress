@@ -553,9 +553,9 @@ class GeminiService:
     
     async def generate_section_content(self, topic: str, main_title: str, work_type: str, lang:str, min_page_count :int, sub_titles_list: list[str], page_count:int , main_sections_count: int) -> str:
         print(f"max{page_count}\n min{min_page_count}")
-        max_word_count = (page_count * 300) // (main_sections_count or 1)
-        min_word_count = (min_page_count * 200) // (main_sections_count or 1)
         
+        await asyncio.sleep(2)
+      
         if main_sections_count == 2:
             if page_count == 15 and min_page_count == 10:
                 max_word_count = (page_count - 5) * 200
