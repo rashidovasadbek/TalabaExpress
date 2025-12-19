@@ -25,7 +25,7 @@ class GeminiService:
         self.client = genai.Client(api_key=api_key)
         
         # 3. Modelni tanlash (Tezlik va sifat uchun)
-        self.model = 'gemini-robotics-er-1.5-preview' 
+        self.model = 'gemini-1.5-flash' 
         
     async def generate_text(self, prompt: str) -> str:
         """
