@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 class GeminiService:
     def __init__(self):
-        api_key = os.environ.get("GEMINI_API_KEY_3")
+        api_key = os.environ.get("GEMINI_API_KEY_1")
         if not api_key:
             # Agar kalit bo'lmasa, ValueError xatosini tashlaymiz
             raise ValueError("❌ GEMINI_API_KEY muhit o'zgaruvchisi o'rnatilmagan.")
