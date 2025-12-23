@@ -113,7 +113,7 @@ class GeminiService:
             response_schema=chart_schema
         )
 
-        model_name = "gemini-3-flash"
+        model_name = "gemini-2.0-flash-lite"
         # Yangi, toʻgʻri qator:
         contents = [types.Content(parts=[types.Part(text=user_query)])]
 
