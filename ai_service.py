@@ -113,7 +113,7 @@ class GeminiService:
             response_schema=chart_schema
         )
 
-        model_name = "gemini-2.0-flash-lite"
+    
         # Yangi, toʻgʻri qator:
         contents = [types.Content(parts=[types.Part(text=user_query)])]
 
@@ -125,7 +125,7 @@ class GeminiService:
                     # BLOCKING chaqiruvni async muhitda ishga tushiramiz
                     response = await asyncio.to_thread(
                         self.client.models.generate_content,
-                        model=model_name,
+                        model=self.model,
                         contents=contents,
                         config=config
                     )
