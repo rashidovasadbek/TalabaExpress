@@ -25,11 +25,12 @@ class GeminiService:
         self.client = genai.Client(api_key=api_key)
         
         # 3. Modelni tanlash (Tezlik va sifat uchun)
-        self.model = 'gemini-2.0-flash-lite' 
+        self.model = 'gemini-2.0-flash' 
+        
         self.content_config = {
         "temperature": 0.7,
         "max_output_tokens": 8192,
-    }
+        }
 
     def _clean_and_split_list(self, text: str) -> list:
         """
@@ -305,6 +306,7 @@ class GeminiService:
             print(f"[SLIDE TITLES] Kutilmagan Xato: {e}")
             return []
 
+    
     async def generate_reja_titles(self, topic: str, num_sections: int, lang:str, work_type: str) -> list[str]:
         
         if work_type == 'mustaqil_ish':
