@@ -61,7 +61,7 @@ class GeminiService:
                     pass
             
             # Yulduzcha yoki chiziq kabi prefikslarni tozalash ("* Kirish" -> "Kirish")
-            if line.startswith(('-', '*', '•')):
+            if line.startswith(('-', '*', '•','**')):
                 line = line[1:].strip()
 
             # Matnni yana bir bor tekshirish va ro'yxatga qo'shish
@@ -306,7 +306,6 @@ class GeminiService:
             print(f"[SLIDE TITLES] Kutilmagan Xato: {e}")
             return []
 
-    
     async def generate_reja_titles(self, topic: str, num_sections: int, lang:str, work_type: str) -> list[str]:
         
         if work_type == 'mustaqil_ish':
