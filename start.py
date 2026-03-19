@@ -58,7 +58,9 @@ def build_main_reply_keyboard() -> ReplyKeyboardMarkup:
             [KeyboardButton(text="📄 Referat (DOCX)"),
              KeyboardButton(text="📄 Mustaqil ish (DOCX) ")],
             [KeyboardButton(text="💰 Balans"),
-             KeyboardButton(text="📘 Yo'riqnoma")]
+             KeyboardButton(text="📘 Yo'riqnoma")],
+            KeyboardButton(text = "Prezintatsiya(PPTX)")
+        
         ],
         resize_keyboard=True
     )
