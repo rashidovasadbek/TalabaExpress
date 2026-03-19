@@ -445,42 +445,61 @@ def escape_markdown(text):
 
     return text
 
-def get_cost_from_range(range_key_raw: str) -> float:
-    """
-    Sahifa diapazoniga qarab narxni qaytaradi. 
-    range_key_raw 'pages_15_20' yoki '15-20' formatida kelishi mumkin.
-    """
+# def get_cost_from_range(range_key_raw: str) -> float:
+#     """
+#     Sahifa diapazoniga qarab narxni qaytaradi. 
+#     range_key_raw 'pages_15_20' yoki '15-20' formatida kelishi mumkin.
+#     """
     
-    # 1. Narxni qidirish uchun kalitni tayyorlash
-    page_range_key = range_key_raw # Default holat: '15-20' kabi
+#     # 1. Narxni qidirish uchun kalitni tayyorlash
+#     page_range_key = range_key_raw # Default holat: '15-20' kabi
+    
+#     try:
+#         if range_key_raw.startswith("pages_"):
+#             # Callback data formatini ('pages_15_20') '15-20' formatiga o'tkazish
+#             parts = range_key_raw.split('_')
+            
+#             # Agar format to'g'ri bo'lsa (pages, 15, 20)
+#             if len(parts) >= 3:
+#                 page_range_key = f"{parts[1]}-{parts[2]}" 
+#             else:
+#                 # Agar callback formati buzilgan bo'lsa
+#                 page_range_key = '15-20' 
+        
+#         # 2. PRICING lug'atidan narxni olish
+#         # Agar kalit topilmasa, 0.0 qaytaramiz (yoki o'rnatilgan default narx)
+#         cost = PRICING.get(page_range_key)
+        
+#         if cost is not None:
+#             return float(cost)
+            
+#     except Exception as e:
+#         # Kodni tahlil qilishda yoki konvertatsiyada xato ketsa
+#         print(f"ERROR in get_cost_from_range: {e}. Raw key: {range_key_raw}")
+#         # xato yuz berganda ham, hech bo'lmaganda default narxni qaytarishga harakat qilish
+#         pass
+
+#     # Kalit topilmasa yoki xato yuz bersa, 0.0 qaytarish
+#     return 0.0
+
+def get_cost_from_range(range_key_raw: str) -> float:
+    if not range_key_raw:
+        return 0.0
+    
+    # Formatni tozalash: 'pages_15_20' -> '15-20' yoki '15_20' -> '15-20'
+    clean_key = str(range_key_raw).replace("pages_", "").replace("_", "-")
     
     try:
-        if range_key_raw.startswith("pages_"):
-            # Callback data formatini ('pages_15_20') '15-20' formatiga o'tkazish
-            parts = range_key_raw.split('_')
-            
-            # Agar format to'g'ri bo'lsa (pages, 15, 20)
-            if len(parts) >= 3:
-                page_range_key = f"{parts[1]}-{parts[2]}" 
-            else:
-                # Agar callback formati buzilgan bo'lsa
-                page_range_key = '15-20' 
-        
-        # 2. PRICING lug'atidan narxni olish
-        # Agar kalit topilmasa, 0.0 qaytaramiz (yoki o'rnatilgan default narx)
-        cost = PRICING.get(page_range_key)
-        
+        cost = PRICING.get(clean_key)
         if cost is not None:
             return float(cost)
+        
+        # Agar hali ham topilmasa, default referat narxini qaytarish (masalan 15-20 uchun)
+        return float(PRICING.get('15-20', 0.0))
             
     except Exception as e:
-        # Kodni tahlil qilishda yoki konvertatsiyada xato ketsa
-        print(f"ERROR in get_cost_from_range: {e}. Raw key: {range_key_raw}")
-        # xato yuz berganda ham, hech bo'lmaganda default narxni qaytarishga harakat qilish
-        pass
-
-    # Kalit topilmasa yoki xato yuz bersa, 0.0 qaytarish
-    return 0.0
+        print(f"ERROR in get_cost_from_range: {e}")
+        return 0.0
 
 @router.callback_query(F.data == "confirm_data", UserGeneration.waiting_for_confirmation)
 async def final_generation_start(callback:types.CallbackQuery, state: FSMContext, db:Database):
@@ -489,9 +508,10 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
     user_id = callback.from_user.id
     work_id = None # ai_works jadvali uchun ID
     
-    page_count_raw = user_data.get("page_count", "pages_15_20") 
+    work_type = user_data.get('work_type', 'refarat')
+    page_count_raw = user_data.get("page_count", "15_20") 
     
-    cost = get_cost_from_range(page_count_raw)
+    cost = get_cost_from_range(str(page_count_raw))
     tr_type = "generation"
     
     user_balance = await db.get_user_balance(user_id) 
@@ -620,9 +640,20 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
         
         if work_type == 'prezentatsiya':
            
+            # try:
+            #     min_c, max_c = map(int, user_data.get("page_count", "15_20").split('_'))
+            #     num_slides = int((min_c + max_c) / 2) 
+            # except:
+            #     num_slides = 15
             try:
-                min_c, max_c = map(int, user_data.get("page_count", "15_20").split('_'))
-                num_slides = int((min_c + max_c) / 2) 
+    # Har qanday formatdan faqat sonlarni ajratib olamiz
+                import re
+                numbers = re.findall(r'\d+', str(page_count_raw))
+                if len(numbers) >= 2:
+                    min_c, max_c = int(numbers[0]), int(numbers[1])
+                    num_slides = int((min_c + max_c) / 2)
+                else:
+                    num_slides = 15 # Default
             except:
                 num_slides = 15
                 
