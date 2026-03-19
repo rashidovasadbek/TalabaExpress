@@ -1176,9 +1176,14 @@ async def command_help_handler(message: types.Message):
     )
 
 @router.message(Command("new"))
-async def command_new_handler(message: types.Message,state: FSMContext, db: Database, bot:Bot):
+async def command_new_handler(message: types.Message, state: FSMContext, db: Database, bot:Bot):
     await state.clear() 
-    await cmd_start(message,  state, db, bot)
+    await cmd_start(
+        message=message, 
+        bot=bot, 
+        db=db, 
+        state=state
+    )
 
 def get_help_contact_keyboard() -> types.InlineKeyboardMarkup:
 
