@@ -69,7 +69,6 @@ class Database:
                 key, new_value, description
             )
 
-   
     async def get_referral_stats(self, user_id: int, referral_bonus: float) -> tuple[int, float]:
         """
         Foydalanuvchining referral statistikasini hisoblaydi.
