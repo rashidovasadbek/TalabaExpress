@@ -59,7 +59,7 @@ def build_main_reply_keyboard() -> ReplyKeyboardMarkup:
              KeyboardButton(text="📄 Mustaqil ish (DOCX) ")],
             [KeyboardButton(text="💰 Balans"),
              KeyboardButton(text="📘 Yo'riqnoma")],
-            KeyboardButton(text = "Prezintatsiya(PPTX)")
+            KeyboardButton(text = "Prezentatsiya (PPTX)")
         
         ],
         resize_keyboard=True
@@ -1176,9 +1176,9 @@ async def command_help_handler(message: types.Message):
     )
 
 @router.message(Command("new"))
-async def command_new_handler(message: types.Message,state: FSMContext, db: Database):
+async def command_new_handler(message: types.Message,state: FSMContext, db: Database, bot:Bot):
     await state.clear() 
-    await cmd_start(message, state, db)
+    await cmd_start(message, bot,  state, db)
 
 def get_help_contact_keyboard() -> types.InlineKeyboardMarkup:
 
