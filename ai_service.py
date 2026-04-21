@@ -25,8 +25,8 @@ class GeminiService:
         self.client = genai.Client(api_key=api_key)
         
         # 3. Modelni tanlash (Tezlik va sifat uchun)
-        self.model = 'gemini-2.0-flash' 
-        
+        self.model = 'gemini-2.5-flash' 
+        self.model_to_ppt = 'Gemini Robotics ER 1.5 Preview'
         self.content_config = {
         "temperature": 0.7,
         "max_output_tokens": 8192,
@@ -126,7 +126,7 @@ class GeminiService:
                     # BLOCKING chaqiruvni async muhitda ishga tushiramiz
                     response = await asyncio.to_thread(
                         self.client.models.generate_content,
-                        model=self.model,
+                        model=self.model_to_ppt,
                         contents=contents,
                         config=config
                     )
@@ -189,7 +189,7 @@ class GeminiService:
                 try:
                     response = await asyncio.to_thread(
                         self.client.models.generate_content,
-                        model=self.model,
+                        model=self.model_to_ppt,
                         contents=prompt
                     )
                     return response.text.strip()
@@ -284,7 +284,7 @@ class GeminiService:
                 try:
                     response = await asyncio.to_thread(
                         self.client.models.generate_content,
-                        model=self.model,
+                        model=self.model_to_ppt,
                         contents=prompt
                     )
                     response_text = response.text.strip()
@@ -305,6 +305,7 @@ class GeminiService:
         except Exception as e:
             print(f"[SLIDE TITLES] Kutilmagan Xato: {e}")
             return []
+
 
     async def generate_reja_titles(self, topic: str, num_sections: int, lang:str, work_type: str) -> list[str]:
         
