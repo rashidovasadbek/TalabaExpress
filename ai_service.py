@@ -943,6 +943,11 @@ class GeminiService:
             print(f"[{target_lang}] Tarjima 3 urinishdan keyin ham bajarilmadi.")
             return text # Tarjima qilinmagan asl matnni qaytarish xavfsizroq
 
+        except Exception as e:
+            print(f"Gemini API xatosi (Tarjima): {e}")
+            # Xato bo'lsa ham, asl matnni qaytarish xavfsizroq, hujjati buzilmasligi uchun
+            return text
+
     # ===================================================================
     #  Prezentatsiya uchun qo'shimcha professional kontent
     # ===================================================================
@@ -1072,8 +1077,3 @@ class GeminiService:
         except Exception as e:
             print(f"[TIMELINE] Xato: {e}")
             return None
-
-        except Exception as e:
-                print(f"Gemini API xatosi (Tarjima): {e}")
-                # Xato bo'lsa ham, asl matnni qaytarish xavfsizroq, hujjati buzilmasligi uchun
-                return text 
