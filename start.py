@@ -24,6 +24,7 @@ import urllib.parse
 from aiogram.filters import StateFilter
 import logging
 import traceback
+import binascii
 import base64
 
 class UserGeneration(StatesGroup):
@@ -1304,33 +1305,31 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
     referrer_id = None
     referrer_id_from_message = None 
     
-    # 1. Referral ID ni Message.text dan aniqlash (BASE64 kodlashni hisobga olgan holda)
+    # 1. Referral ID ni /start payload'idan aniqlash.
+    #    Havola encode=True bilan yaratilgani uchun payload base64 ko'rinishida keladi,
+    #    lekin to'g'ridan-to'g'ri "ref_<id>" ham qo'llab-quvvatlanadi.
     if message.text and len(message.text.split()) > 1:
-        encoded_payload = message.text.split()[1]
-        
-        logging.info(f"PAYLOAD_DETECTED: {user_id}. Payload: {encoded_payload}")
-        
+        raw_payload = message.text.split(maxsplit=1)[1].strip()
+        logging.info(f"PAYLOAD_DETECTED: {user_id}. Payload: {raw_payload}")
+
+        candidates = [raw_payload]
         try:
-            # BASE64 URL SAFE usulida koddan chiqarish
-            decoded_bytes = base64.urlsafe_b64decode(encoded_payload + '==') 
-            payload = decoded_bytes.decode('utf-8')
-            logging.info(f"DECODED_PAYLOAD: {user_id}. Decoded: {payload}")
-            
-            # Koddan chiqarilgan payloadni ishlash
-            if payload.startswith("ref_"):
-                referrer_id_from_message = int(payload.replace("ref_", ""))
-                if referrer_id_from_message == user_id:
-                    referrer_id_from_message = None
-            
-            # Agar to'g'ridan-to'g'ri ref_ kelgan bo'lsa
-            elif encoded_payload.startswith("ref_"):
-                referrer_id_from_message = int(encoded_payload.replace("ref_", ""))
-                if referrer_id_from_message == user_id:
-                    referrer_id_from_message = None
-                    
-        except (ValueError, TypeError, base64.B64DecodeError) as e:
-            logging.warning(f"Referral ID parse error for {user_id}: {e}")
-            referrer_id_from_message = None
+            # base64 (urlsafe) dan chiqarishga urinish — padding to'ldiriladi
+            padded = raw_payload + "=" * (-len(raw_payload) % 4)
+            decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
+            candidates.append(decoded)
+        except (ValueError, TypeError, binascii.Error, UnicodeDecodeError):
+            pass  # base64 emas — to'g'ridan-to'g'ri payload bilan davom etamiz
+
+        for cand in candidates:
+            if cand.startswith("ref_"):
+                try:
+                    rid = int(cand[4:])
+                except ValueError:
+                    continue
+                if rid != user_id:   # o'ziga o'zi referral bo'lmasin
+                    referrer_id_from_message = rid
+                break
 
     
     # 2. REFERRER ID ni yakuniy aniqlash va FSMContext ga saqlash
@@ -1414,46 +1413,42 @@ async def cmd_start(message: types.Message, bot: Bot, db: Database, state: FSMCo
 async def command_referral_handler(message: types.Message, bot: Bot, db: Database):
     user_id = message.from_user.id
     bot_username = (await bot.get_me()).username
-    
-    personal_link = await create_start_link(bot, f"ref_{user_id}", encode=True) 
-    
-    share_message_text = f"""
-    📚 **TALABALIKNI OSONLASHTIR!** 🚀
-    
-    Men ajoyib botni topdim! {bot_username} — referat, mustaqil ish va taqdimotlarni (DOCX/PPTX) bir necha daqiqada tayyorlaydi.
-    
-    🎁 Sizga ham **+11000 so'm** boshlang'ich bonus beriladi!
-    
-    Qo'shilish uchun: {personal_link}
-    """
-    
-    encoded_text = urllib.parse.quote_plus(share_message_text)
-    share_url = f"https://t.me/share/url?url={encoded_text}"
+
+    personal_link = await create_start_link(bot, f"ref_{user_id}", encode=True)
+
+    # Do'stga yuboriladigan tayyor matn (chap chetdan, ortiqcha bo'shliqsiz)
+    share_message_text = (
+        "📚 Talabalikni osonlashtir! 🚀\n\n"
+        f"Men ajoyib bot topdim — @{bot_username}. U referat, mustaqil ish va "
+        "taqdimotlarni (DOCX/PPTX) bir necha daqiqada tayyorlab beradi.\n\n"
+        "🎁 Ro'yxatdan o'tganingiz uchun sizga +11 000 so'm boshlang'ich bonus beriladi!\n\n"
+        f"Qo'shilish: {personal_link}"
+    )
+    share_url = f"https://t.me/share/url?url={urllib.parse.quote(personal_link)}&text={urllib.parse.quote(share_message_text)}"
 
     invited_count, total_earned = await db.get_referral_stats(user_id, REFERRAL_BONUS)
-    
-    referral_text = f"""
-    🤝 **Dostlaringizni taklif qiling va bonular oling!** 💰
-    
-    Sizning ulashgan havolangiz orqali do'stingiz botga qo'shilishi bilan, hisobingizga darhol:
-    ✨ **+{REFERRAL_BONUS} so'm qo'shiladi!** ✨
-    
-    ---
-        
-        **📊 Statistikangiz:**
-        * Taklif qilganlar: **{invited_count}** kishi
-        * Jami daromad: **{total_earned:,.0f}** so'm 
-    """
-    
+
+    referral_text = (
+        "🤝 *Do'stlaringizni taklif qiling va pul ishlang!*\n\n"
+        "Havolangiz orqali do'stingiz botga qo'shilib, kanalga a'zo bo'lishi bilan "
+        f"hisobingizga darhol *+{REFERRAL_BONUS:,.0f} so'm* qo'shiladi.\n\n"
+        "📊 *Statistikangiz:*\n"
+        f"   • Taklif qilinganlar: *{invited_count}* kishi\n"
+        f"   • Jami ishlangan: *{total_earned:,.0f} so'm*\n\n"
+        "🔗 *Shaxsiy havolangiz:*\n"
+        f"`{personal_link}`\n\n"
+        "_Havolani nusxalab ulashing yoki pastdagi tugmadan foydalaning._"
+    )
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
-                text="🚀 Do'stga Xabarni Yuborish",
-                url=share_url 
+                text="🚀 Do'stga yuborish",
+                url=share_url
             )
         ]
     ])
-    
+
     await message.answer(
         referral_text,
         reply_markup=keyboard,

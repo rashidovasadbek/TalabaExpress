@@ -60,6 +60,15 @@ class Database:
             for r in rows
         ]
         
+    async def get_setting(self, key: str) -> str | None:
+        """Bitta sozlama (prompt) qiymatini kalit bo'yicha oladi. Topilmasa None."""
+        try:
+            async with self.pool.acquire() as conn:
+                return await conn.fetchval("SELECT value FROM settings WHERE key = $1", key)
+        except Exception as e:
+            logging.error(f"get_setting xatosi ({key}): {e}")
+            return None
+
     async def update_setting(self, key: str, new_value: str, description: str = None):
         """Sozlama (prompt) qiymatini yangilaydi/yaratadi."""
         async with self.pool.acquire() as conn:
@@ -149,13 +158,26 @@ class Database:
                     
                     # 2. Agar yangi userda bitta qator yangilangan bo'lsa (ya'ni bonus to'lanmagan bo'lsa), pulni qo'shamiz
                     if rows_updated == 1:
-                        await connection.execute(
+                        # Referrer hali bazada bo'lmasligi mumkin emas (u link tarqatgan),
+                        # lekin baribir mavjudligini tekshiramiz.
+                        credited = await connection.fetchval(
                             """
-                            UPDATE users 
+                            UPDATE users
                             SET balance = balance + $2
                             WHERE telegram_id = $1
+                            RETURNING telegram_id
                             """,
                             referrer_id, bonus_amount
+                        )
+                        if credited is None:
+                            # Referrer topilmadi — tranzaksiyani bekor qilamiz (rollback)
+                            logging.warning(f"BONUS_FAIL: referrer {referrer_id} bazada topilmadi.")
+                            raise ValueError("referrer_not_found")
+
+                        # Audit uchun tranzaksiya yozuvi (balans tarixida ko'rinadi)
+                        await connection.execute(
+                            "INSERT INTO transactions (user_id, amount, type) VALUES ($1, $2, $3)",
+                            referrer_id, bonus_amount, "referral_bonus"
                         )
                         logging.info(f"BONUS_SUCCESS: {invited_user_id} dan {referrer_id} ga {bonus_amount} so'm qo'shildi.")
                         return True
