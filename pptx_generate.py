@@ -256,7 +256,7 @@ def _add_image_cover(slide, path, l, t, w, h):
 
 def _img_frame(slide, ctx, path, l, t, w, h):
     _add_rect(slide, l - Inches(0.06), t - Inches(0.06), w + Inches(0.12), h + Inches(0.12), ctx["line"])
-    _add_image_fit(slide, path, l, t, w, h)
+    _add_image_cover(slide, path, l, t, w, h)
 
 
 def _bullets(slide, ctx, items, l, t, w, h, base, align=PP_ALIGN.LEFT, force_marker=None):
