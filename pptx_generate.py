@@ -20,7 +20,7 @@ import random
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.text import PP_ALIGN, MSO_ANCHOR, MSO_AUTO_SIZE
 from pptx.enum.shapes import MSO_SHAPE
 from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION
 from pptx.chart.data import CategoryChartData
@@ -156,6 +156,15 @@ def _clean_bullets(raw):
     return lines
 
 
+def _shorten(text, limit):
+    """Juda uzun matnni so'z chegarasida qisqartiradi."""
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit(" ", 1)[0].rstrip(",;:.")
+    return cut + "…"
+
+
 def _pick_icon(title):
     t = (title or "").lower()
     for keys, emoji in ICON_MAP:
@@ -270,33 +279,43 @@ def _build_content_slide(prs, theme, title, bullets, index, total, topic,
 
     if has_image:
         text_w = Inches(6.5)
-        max_bullets = 5
+        max_bullets = 4
+        base_size = 15
     else:
         text_w = Inches(11.3)
-        max_bullets = 7
+        max_bullets = 6
+        base_size = 16
 
-    box = slide.shapes.add_textbox(Inches(1.0), Inches(1.95), text_w, Inches(4.9))
+    box = slide.shapes.add_textbox(Inches(1.0), Inches(1.9), text_w, Inches(4.95))
     tf = box.text_frame
     tf.word_wrap = True
+    # Matn quti balandligidan oshib ketsa — avtomatik kichraytiriladi (slaydga sig'adi)
+    tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
 
     if not bullets:
         bullets = ["Ma'lumot generatsiya qilinmadi."]
     bullets = bullets[:max_bullets]
 
+    # Punktlar ko'p bo'lsa shriftni biroz kichraytiramiz (qo'shimcha xavfsizlik)
+    if len(bullets) >= 5:
+        base_size -= 1
+
     for i, line in enumerate(bullets):
+        # Juda uzun punktni qisqartiramiz (sig'masligi oldini olish uchun)
+        line = _shorten(line, 220)
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.alignment = PP_ALIGN.LEFT
-        p.space_after = Pt(10)
-        p.line_spacing = 1.1
+        p.space_after = Pt(8)
+        p.line_spacing = 1.05
         m = p.add_run()
         m.text = "▸  "
-        m.font.size = Pt(17)
+        m.font.size = Pt(base_size)
         m.font.bold = True
         m.font.name = "Calibri"
         m.font.color.rgb = theme["accent"]
         t = p.add_run()
         t.text = line
-        t.font.size = Pt(17)
+        t.font.size = Pt(base_size)
         t.font.name = "Calibri"
         t.font.color.rgb = theme["text"]
 

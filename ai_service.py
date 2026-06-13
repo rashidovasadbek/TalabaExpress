@@ -181,8 +181,11 @@ class GeminiService:
             f"The content MUST be professional, highly informative, and focused on the Slide Title: '{slide_title}'. "
             f"The slide is part of a larger presentation on the topic: '{topic}'.\n"
             
-            f"The content MUST be a list of exactly 4 to 6 short, descriptive bullet points. Each point should be a key takeaway, fact, or concise explanation.\n"
-            
+            f"The content MUST be a list of exactly 3 to 5 SHORT bullet points. "
+            f"Each bullet MUST be concise — a maximum of 14 words and fit on a single line. "
+            f"Write only the key idea, fact, or term — NOT full multi-sentence paragraphs. "
+            f"Do NOT add long explanations after a colon; keep each point brief and scannable.\n"
+
             f"Crucially, for presentation flow, your response MUST NOT contain any introductory sentences (like 'This slide discusses...') or concluding sentences. "
             f"The output must be ONLY the bullet points, using '*' ,'**' or '-' as the list marker, in the **{target_lang}**."
         )
