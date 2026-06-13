@@ -78,16 +78,16 @@ THEMES = {
 #   font:     shrift nomi
 # ---------------------------------------------------------------------------
 TEMPLATES = {
-    "classic":     {"name": "Klassik",     "bg": "light", "title": "block",  "content": "standard", "bullet": "dash",   "font": "Georgia"},
-    "minimalist":  {"name": "Minimalist",  "bg": "light", "title": "light",  "content": "minimal",  "bullet": "none",   "font": "Calibri"},
-    "bold":        {"name": "Bold",        "bg": "light", "title": "split",   "content": "split",    "bullet": "arrow",  "font": "Arial"},
-    "corporate":   {"name": "Korporativ",  "bg": "light", "title": "band",    "content": "band",     "bullet": "arrow",  "font": "Calibri"},
-    "modern":      {"name": "Zamonaviy",   "bg": "light", "title": "block",   "content": "cards",    "bullet": "card",   "font": "Calibri"},
-    "dark":        {"name": "Tungi",       "bg": "dark",  "title": "block",   "content": "standard", "bullet": "arrow",  "font": "Calibri"},
-    "creative":    {"name": "Ijodiy",      "bg": "light", "title": "block",   "content": "creative", "bullet": "arrow",  "font": "Calibri"},
-    "elegant":     {"name": "Nafis",       "bg": "cream", "title": "light",   "content": "minimal",  "bullet": "dash",   "font": "Georgia"},
-    "infographic": {"name": "Infografik",  "bg": "light", "title": "band",    "content": "numbered", "bullet": "number", "font": "Calibri"},
-    "photo":       {"name": "Rasm asosida","bg": "light", "title": "block",   "content": "photo",    "bullet": "arrow",  "font": "Calibri"},
+    "classic":     {"name": "Klassik",     "bg": "light", "title": "block",      "content": "standard", "bullet": "dash",   "font": "Georgia"},
+    "minimalist":  {"name": "Minimalist",  "bg": "light", "title": "minimal",    "content": "minimal",  "bullet": "none",   "font": "Calibri"},
+    "bold":        {"name": "Bold",        "bg": "light", "title": "split",      "content": "split",    "bullet": "arrow",  "font": "Arial"},
+    "corporate":   {"name": "Korporativ",  "bg": "light", "title": "band",       "content": "band",     "bullet": "arrow",  "font": "Calibri"},
+    "modern":      {"name": "Zamonaviy",   "bg": "light", "title": "geo",        "content": "cards",    "bullet": "card",   "font": "Calibri"},
+    "dark":        {"name": "Tungi",       "bg": "dark",  "title": "centerdark", "content": "standard", "bullet": "arrow",  "font": "Calibri"},
+    "creative":    {"name": "Ijodiy",      "bg": "light", "title": "diagonal",   "content": "creative", "bullet": "arrow",  "font": "Calibri"},
+    "elegant":     {"name": "Nafis",       "bg": "cream", "title": "elegant",    "content": "minimal",  "bullet": "dash",   "font": "Georgia"},
+    "infographic": {"name": "Infografik",  "bg": "light", "title": "stat",       "content": "numbered", "bullet": "number", "font": "Calibri"},
+    "photo":       {"name": "Rasm asosida","bg": "light", "title": "frame",      "content": "photo",    "bullet": "arrow",  "font": "Calibri"},
 }
 
 ICON_MAP = [
@@ -535,7 +535,108 @@ def _title_light(prs, ctx, d):
     return s
 
 
-_TITLES = {"block": _title_block, "split": _title_split, "band": _title_band, "light": _title_light}
+def _title_geo(prs, ctx, d):
+    """Zamonaviy — o'ng tomonda katta rangli blok + geometrik aksent."""
+    s = _blank_slide(prs)
+    _fill_background(s, WHITE)
+    _add_rect(s, Inches(8.5), Inches(0), Inches(4.83), SLIDE_H, ctx["primary"])
+    _add_rect(s, Inches(7.4), Inches(2.3), Inches(1.5), Inches(1.5), ctx["accent"], shape=MSO_SHAPE.OVAL)
+    _add_rect(s, Inches(9.4), Inches(5.2), Inches(1.1), Inches(1.1), ctx["accent2"], shape=MSO_SHAPE.OVAL)
+    uni = d.get("university_name") or d.get("uni_kafedra", "")
+    _add_text(s, Inches(0.9), Inches(0.9), Inches(7.0), Inches(0.9), str(uni).upper(), 15, ctx["primary"], bold=True, font=ctx["font"])
+    _add_text(s, Inches(0.9), Inches(3.0), Inches(7.0), Inches(2.2), d.get("topic", "Mavzu"), 36, ctx["primary"], bold=True, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+    _add_rect(s, Inches(0.95), Inches(5.2), Inches(2.4), Inches(0.08), ctx["accent"])
+    _title_info(s, ctx, d, ctx["text"])
+    return s
+
+
+def _title_centerdark(prs, ctx, d):
+    """Tungi — to'liq quyuq fon, markazlashgan katta sarlavha."""
+    s = _blank_slide(prs)
+    _fill_background(s, ctx["primary"])
+    uni = d.get("university_name") or d.get("uni_kafedra", "")
+    _add_text(s, Inches(1.0), Inches(1.1), Inches(11.3), Inches(0.7), str(uni).upper(), 15, ctx["accent2"], bold=True, align=PP_ALIGN.CENTER, font=ctx["font"])
+    _add_text(s, Inches(1.0), Inches(2.6), Inches(11.3), Inches(2.0), d.get("topic", "Mavzu"), 42, ctx["on_dark"], bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+    _add_rect(s, Inches(5.86), Inches(4.7), Inches(1.6), Inches(0.08), ctx["accent"])
+    _add_text(s, Inches(1.0), Inches(5.4), Inches(11.3), Inches(1.2),
+              f"{d.get('student_fio', '')}  •  {d.get('student_group', '')}  •  {d.get('year', '')}",
+              15, ctx["on_dark"], align=PP_ALIGN.CENTER, font=ctx["font"])
+    return s
+
+
+def _title_diagonal(prs, ctx, d):
+    """Ijodiy — assimetrik uchburchak shakllar."""
+    s = _blank_slide(prs)
+    _fill_background(s, WHITE)
+    _add_rect(s, Inches(0), Inches(0), Inches(3.4), Inches(3.4), ctx["accent"], shape=MSO_SHAPE.RIGHT_TRIANGLE)
+    tri = _add_rect(s, Inches(9.9), Inches(4.1), Inches(3.43), Inches(3.4), ctx["accent2"], shape=MSO_SHAPE.RIGHT_TRIANGLE)
+    tri.rotation = 180
+    _add_rect(s, Inches(11.0), Inches(0.6), Inches(1.1), Inches(1.1), ctx["primary"], shape=MSO_SHAPE.OVAL)
+    uni = d.get("university_name") or d.get("uni_kafedra", "")
+    _add_text(s, Inches(1.4), Inches(1.2), Inches(9.0), Inches(0.8), str(uni).upper(), 15, ctx["primary"], bold=True, font=ctx["font"])
+    _add_text(s, Inches(1.4), Inches(2.7), Inches(9.5), Inches(2.0), d.get("topic", "Mavzu"), 38, ctx["primary"], bold=True, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+    _add_rect(s, Inches(1.45), Inches(4.8), Inches(2.4), Inches(0.08), ctx["accent"])
+    _title_info(s, ctx, d, ctx["text"])
+    return s
+
+
+def _title_elegant(prs, ctx, d):
+    """Nafis — krem fon, markazlashgan serif, ikki nozik chiziq."""
+    s = _blank_slide(prs)
+    _fill_background(s, ctx["bg"] if ctx["bg"] != ctx["primary"] else CREAM)
+    uni = d.get("university_name") or d.get("uni_kafedra", "")
+    _add_text(s, Inches(1.0), Inches(1.4), Inches(11.3), Inches(0.7), str(uni).upper(), 14, ctx["primary"], align=PP_ALIGN.CENTER, font=ctx["font"])
+    _add_rect(s, Inches(5.16), Inches(2.7), Inches(3.0), Inches(0.03), ctx["accent"])
+    _add_text(s, Inches(1.0), Inches(2.9), Inches(11.3), Inches(1.6), d.get("topic", "Mavzu"), 36, ctx["primary"], bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"], italic=True)
+    _add_rect(s, Inches(5.16), Inches(4.6), Inches(3.0), Inches(0.03), ctx["accent"])
+    _add_text(s, Inches(1.0), Inches(5.2), Inches(11.3), Inches(1.0),
+              f"{d.get('student_fio', '')}  •  {d.get('student_group', '')}  •  {d.get('year', '')}",
+              14, ctx["text"], align=PP_ALIGN.CENTER, font=ctx["font"])
+    return s
+
+
+def _title_stat(prs, ctx, d):
+    """Infografik — sarlavha + pastda 3 ta dekorativ blok."""
+    s = _blank_slide(prs)
+    _fill_background(s, WHITE)
+    _add_rect(s, Inches(0.9), Inches(0.85), Inches(0.18), Inches(0.7), ctx["accent"])
+    uni = d.get("university_name") or d.get("uni_kafedra", "")
+    _add_text(s, Inches(1.25), Inches(0.85), Inches(10.5), Inches(0.7), str(uni).upper(), 15, ctx["primary"], bold=True, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+    _add_text(s, Inches(0.9), Inches(1.9), Inches(11.4), Inches(1.6), d.get("topic", "Mavzu"), 36, ctx["primary"], bold=True, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+    cols = [ctx["accent"], ctx["accent2"], ctx["primary"]]
+    for i in range(3):
+        x = Inches(0.9 + i * 3.95)
+        _add_rect(s, x, Inches(3.9), Inches(3.7), Inches(1.5), cols[i], shape=MSO_SHAPE.ROUNDED_RECTANGLE)
+    _add_text(s, Inches(0.9), Inches(5.7), Inches(11.4), Inches(0.8),
+              f"{d.get('student_fio', '')}  •  {d.get('student_group', '')}  •  {d.get('year', '')}",
+              14, ctx["text"], font=ctx["font"])
+    return s
+
+
+def _title_frame(prs, ctx, d):
+    """Rasm asosida — quyuq fon + qalin aksent ramka (poster uslubi)."""
+    s = _blank_slide(prs)
+    _fill_background(s, ctx["primary"])
+    bw = Inches(0.22)
+    _add_rect(s, Inches(0.5), Inches(0.45), Inches(12.33), bw, ctx["accent"])
+    _add_rect(s, Inches(0.5), Inches(6.83), Inches(12.33), bw, ctx["accent"])
+    _add_rect(s, Inches(0.5), Inches(0.45), bw, Inches(6.6), ctx["accent"])
+    _add_rect(s, Inches(12.61), Inches(0.45), bw, Inches(6.6), ctx["accent"])
+    uni = d.get("university_name") or d.get("uni_kafedra", "")
+    _add_text(s, Inches(1.2), Inches(1.3), Inches(10.9), Inches(0.8), str(uni).upper(), 15, ctx["accent2"], bold=True, align=PP_ALIGN.CENTER, font=ctx["font"])
+    _add_text(s, Inches(1.2), Inches(2.8), Inches(10.9), Inches(1.8), d.get("topic", "Mavzu"), 40, ctx["on_dark"], bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+    _add_text(s, Inches(1.2), Inches(5.4), Inches(10.9), Inches(0.9),
+              f"{d.get('student_fio', '')}  •  {d.get('student_group', '')}  •  {d.get('year', '')}",
+              14, ctx["on_dark"], align=PP_ALIGN.CENTER, font=ctx["font"])
+    return s
+
+
+_TITLES = {
+    "block": _title_block, "minimal": _title_light, "split": _title_split,
+    "band": _title_band, "geo": _title_geo, "centerdark": _title_centerdark,
+    "diagonal": _title_diagonal, "elegant": _title_elegant, "stat": _title_stat,
+    "frame": _title_frame,
+}
 
 
 # ---------------------------------------------------------------------------
