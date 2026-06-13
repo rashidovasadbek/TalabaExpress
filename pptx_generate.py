@@ -78,14 +78,14 @@ THEMES = {
 #   font:     shrift nomi
 # ---------------------------------------------------------------------------
 TEMPLATES = {
-    "classic":     {"name": "Klassik",     "bg": "light", "title": "block",      "content": "standard", "bullet": "dash",   "font": "Georgia"},
+    "classic":     {"name": "Klassik",     "bg": "light", "title": "block",      "content": "classic",  "bullet": "dash",   "font": "Georgia"},
     "minimalist":  {"name": "Minimalist",  "bg": "light", "title": "minimal",    "content": "minimal",  "bullet": "none",   "font": "Calibri"},
     "bold":        {"name": "Bold",        "bg": "light", "title": "split",      "content": "split",    "bullet": "arrow",  "font": "Arial"},
     "corporate":   {"name": "Korporativ",  "bg": "light", "title": "band",       "content": "band",     "bullet": "arrow",  "font": "Calibri"},
-    "modern":      {"name": "Zamonaviy",   "bg": "light", "title": "geo",        "content": "cards",    "bullet": "card",   "font": "Calibri"},
+    "modern":      {"name": "Zamonaviy",   "bg": "light", "title": "geo",        "content": "grid",     "bullet": "card",   "font": "Calibri"},
     "dark":        {"name": "Tungi",       "bg": "dark",  "title": "centerdark", "content": "standard", "bullet": "arrow",  "font": "Calibri"},
     "creative":    {"name": "Ijodiy",      "bg": "light", "title": "diagonal",   "content": "creative", "bullet": "arrow",  "font": "Calibri"},
-    "elegant":     {"name": "Nafis",       "bg": "cream", "title": "elegant",    "content": "minimal",  "bullet": "dash",   "font": "Georgia"},
+    "elegant":     {"name": "Nafis",       "bg": "cream", "title": "elegant",    "content": "elegant",  "bullet": "dash",   "font": "Georgia"},
     "infographic": {"name": "Infografik",  "bg": "light", "title": "stat",       "content": "numbered", "bullet": "number", "font": "Calibri"},
     "photo":       {"name": "Rasm asosida","bg": "light", "title": "frame",      "content": "photo",    "bullet": "arrow",  "font": "Calibri"},
 }
@@ -259,7 +259,7 @@ def _img_frame(slide, ctx, path, l, t, w, h):
     _add_image_fit(slide, path, l, t, w, h)
 
 
-def _bullets(slide, ctx, items, l, t, w, h, base, align=PP_ALIGN.LEFT):
+def _bullets(slide, ctx, items, l, t, w, h, base, align=PP_ALIGN.LEFT, force_marker=None):
     box = slide.shapes.add_textbox(l, t, w, h)
     tf = box.text_frame
     tf.word_wrap = True
@@ -270,7 +270,7 @@ def _bullets(slide, ctx, items, l, t, w, h, base, align=PP_ALIGN.LEFT):
         p.alignment = align
         p.space_after = Pt(9)
         p.line_spacing = 1.08
-        mk = _marker(ctx, i)
+        mk = force_marker if force_marker is not None else _marker(ctx, i)
         if mk:
             mr = p.add_run()
             mr.text = mk
@@ -398,7 +398,83 @@ def _fam_cards(s, ctx, title, b, hi, ip, icons, parity):
 
 
 def _fam_numbered(s, ctx, title, b, hi, ip, icons, parity):
-    _fam_cards(s, ctx, title, b, hi, ip, icons, parity)
+    """Infografik — raqamli doira + matn qatorlari (+ rasm)."""
+    _header(s, ctx, title, icons=icons)
+    items = b[:4] if hi else b[:5]
+    n = max(1, len(items))
+    area_w = Inches(6.4) if hi else Inches(11.3)
+    top = Inches(2.0)
+    gap = Inches(0.25)
+    rh = (Inches(4.6) - gap * (n - 1)) / n
+    for i, line in enumerate(items):
+        y = top + i * (rh + gap)
+        _add_rect(s, Inches(1.0), y + rh / 2 - Inches(0.32), Inches(0.64), Inches(0.64), ctx["accent"], shape=MSO_SHAPE.OVAL)
+        _add_text(s, Inches(1.0), y + rh / 2 - Inches(0.32), Inches(0.64), Inches(0.64), str(i + 1), 18, ctx["on_dark"], bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+        tb = s.shapes.add_textbox(Inches(1.85), y, area_w - Inches(0.9), rh)
+        tf = tb.text_frame
+        tf.word_wrap = True
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]
+        r = p.add_run()
+        r.text = _shorten(line, 120)
+        r.font.size = Pt(15)
+        r.font.name = ctx["font"]
+        r.font.color.rgb = ctx["text"]
+    if hi:
+        _img_frame(s, ctx, ip, Inches(7.75), Inches(1.95), Inches(4.6), Inches(4.5))
+
+
+def _fam_classic(s, ctx, title, b, hi, ip, icons, parity):
+    """Klassik — sarlavha + bulletlar chapda, o'rtada nozik ajratuvchi, rasm o'ngda."""
+    _header(s, ctx, title, icons=icons)
+    if hi:
+        _bullets(s, ctx, b[:4], Inches(1.0), Inches(1.95), Inches(6.0), Inches(4.8), 16)
+        _add_rect(s, Inches(7.25), Inches(2.1), Inches(0.02), Inches(4.4), ctx["line"])
+        _img_frame(s, ctx, ip, Inches(7.7), Inches(1.95), Inches(4.65), Inches(4.5))
+    else:
+        _bullets(s, ctx, b[:6], Inches(1.0), Inches(1.95), Inches(11.3), Inches(4.8), 17)
+
+
+def _fam_grid(s, ctx, title, b, hi, ip, icons, parity):
+    """Zamonaviy — 2×2 karta to'ri."""
+    _header(s, ctx, title, icons=icons)
+    items = b[:4]
+    while len(items) < 1:
+        items.append("")
+    cw = Inches(5.55)
+    chh = Inches(2.25)
+    gx = Inches(0.25)
+    gy = Inches(0.25)
+    x0 = Inches(1.0)
+    y0 = Inches(2.0)
+    for i, line in enumerate(items[:4]):
+        col = i % 2
+        row = i // 2
+        x = x0 + col * (cw + gx)
+        y = y0 + row * (chh + gy)
+        _add_rect(s, x, y, cw, chh, ctx["theme"]["light"], shape=MSO_SHAPE.ROUNDED_RECTANGLE)
+        _add_rect(s, x, y, cw, Inches(0.14), ctx["accent"])
+        tb = s.shapes.add_textbox(x + Inches(0.3), y + Inches(0.3), cw - Inches(0.6), chh - Inches(0.5))
+        tf = tb.text_frame
+        tf.word_wrap = True
+        tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        p = tf.paragraphs[0]
+        r = p.add_run()
+        r.text = _shorten(line, 110)
+        r.font.size = Pt(15)
+        r.font.name = ctx["font"]
+        r.font.color.rgb = ctx["theme"]["text"]
+
+
+def _fam_elegant(s, ctx, title, b, hi, ip, icons, parity):
+    """Nafis — markazlashgan sarlavha, markazlashgan dash bulletlar, ramkali rasm."""
+    _add_text(s, Inches(1.0), Inches(0.8), Inches(11.3), Inches(0.9), title, 28, ctx["title"], bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+    _add_rect(s, Inches(5.66), Inches(1.7), Inches(2.0), Inches(0.03), ctx["accent"])
+    if hi:
+        _bullets(s, ctx, b[:4], Inches(1.4), Inches(2.2), Inches(6.0), Inches(4.4), 16, force_marker="—  ")
+        _img_frame(s, ctx, ip, Inches(7.9), Inches(2.3), Inches(4.3), Inches(4.0))
+    else:
+        _bullets(s, ctx, b[:5], Inches(2.5), Inches(2.2), Inches(8.3), Inches(4.4), 18, align=PP_ALIGN.CENTER, force_marker="—  ")
 
 
 def _fam_minimal(s, ctx, title, b, hi, ip, icons, parity):
@@ -418,10 +494,11 @@ def _fam_creative(s, ctx, title, b, hi, ip, icons, parity):
     _add_text(s, Inches(1.0), Inches(0.7), Inches(11.0), Inches(1.0), title, 28, ctx["title"], bold=True, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
     _add_rect(s, Inches(1.0), Inches(1.7), Inches(2.2), Inches(0.08), ctx["accent"])
     if hi:
-        _bullets(s, ctx, b[:4], Inches(1.0), Inches(2.1), Inches(6.4), Inches(4.5), 16)
-        _img_frame(s, ctx, ip, Inches(7.75), Inches(2.0), Inches(4.5), Inches(4.4))
+        # Rasm CHAPDA (boshqa shablonlardan farqlash uchun), nuqta markerli bulletlar o'ngda
+        _add_image_cover(s, ip, Inches(1.0), Inches(2.1), Inches(4.7), Inches(4.4))
+        _bullets(s, ctx, b[:4], Inches(6.2), Inches(2.1), Inches(6.2), Inches(4.4), 16, force_marker="●  ")
     else:
-        _bullets(s, ctx, b[:6], Inches(1.0), Inches(2.1), Inches(11.3), Inches(4.5), 17)
+        _bullets(s, ctx, b[:6], Inches(1.0), Inches(2.1), Inches(11.3), Inches(4.5), 17, force_marker="●  ")
 
 
 def _fam_photo(s, ctx, title, b, hi, ip, icons, parity):
@@ -443,6 +520,7 @@ _FAMILIES = {
     "standard": _fam_standard, "band": _fam_band, "sidepanel": _fam_sidepanel,
     "split": _fam_split, "cards": _fam_cards, "numbered": _fam_numbered,
     "minimal": _fam_minimal, "creative": _fam_creative, "photo": _fam_photo,
+    "classic": _fam_classic, "grid": _fam_grid, "elegant": _fam_elegant,
 }
 # Quyuq chap panelli oilalar — footer mavzu matni o'chiriladi
 _PANEL_FAMILIES = {"sidepanel", "split"}
