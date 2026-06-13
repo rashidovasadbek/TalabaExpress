@@ -27,6 +27,7 @@ import traceback
 import base64
 
 class UserGeneration(StatesGroup):
+    choosing_template = State()
     choosing_theme = State()
     choosing_language = State()
     waiting_for_topic = State()
@@ -95,6 +96,20 @@ def build_page_count_keyboard() -> types.InlineKeyboardMarkup:
         [types.InlineKeyboardButton(text="15 dan 20 gacha", callback_data="pages_15_20")],
         [types.InlineKeyboardButton(text="20 dan 30 gacha", callback_data="pages_21_30")],
     ])
+
+def build_template_keyboard() -> types.InlineKeyboardMarkup:
+    """Prezentatsiya shablon uslubini tanlash (10 xil)."""
+    tpls = [
+        ("📘 Klassik", "tpl_classic"),       ("⬜ Minimalist", "tpl_minimalist"),
+        ("🟨 Bold", "tpl_bold"),             ("🏢 Korporativ", "tpl_corporate"),
+        ("✨ Zamonaviy", "tpl_modern"),       ("🌙 Tungi", "tpl_dark"),
+        ("🎨 Ijodiy", "tpl_creative"),       ("🕊 Nafis", "tpl_elegant"),
+        ("📊 Infografik", "tpl_infographic"), ("🖼 Rasm asosida", "tpl_photo"),
+    ]
+    rows = []
+    for i in range(0, len(tpls), 2):
+        rows.append([types.InlineKeyboardButton(text=t, callback_data=c) for t, c in tpls[i:i+2]])
+    return types.InlineKeyboardMarkup(inline_keyboard=rows)
 
 def build_theme_keyboard() -> types.InlineKeyboardMarkup:
     """Prezentatsiya rang mavzusini tanlash klaviaturasi (15 xil dizayn)."""
@@ -280,13 +295,25 @@ async def handle_start_pptx(message: types.Message, state: FSMContext, bot: Bot,
         
     await state.update_data(work_type = 'prezentatsiya')
 
-    await state.set_state(UserGeneration.choosing_theme)
+    await state.set_state(UserGeneration.choosing_template)
 
     await message.answer(
-        "🎨 Iltimos, prezentatsiya uchun **dizayn rangini** tanlang:",
+        "🖼 Avval prezentatsiya uchun **shablon uslubini** tanlang:",
+        reply_markup=build_template_keyboard(),
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data.startswith("tpl_"), UserGeneration.choosing_template)
+async def template_selected(callback: types.CallbackQuery, state: FSMContext):
+    template_name = callback.data.split("_", 1)[1]
+    await state.update_data(pptx_template=template_name)
+    await state.set_state(UserGeneration.choosing_theme)
+    await callback.message.edit_text(
+        "🎨 Endi shu shablon uchun **rang (dizayn)** tanlang:",
         reply_markup=build_theme_keyboard(),
         parse_mode="Markdown"
     )
+    await callback.answer()
 
 @router.callback_query(F.data.startswith("theme_"), UserGeneration.choosing_theme)
 async def theme_selected(callback: types.CallbackQuery, state: FSMContext):
@@ -557,11 +584,20 @@ async def icons_selected(callback: types.CallbackQuery, state: FSMContext):
     }
     theme_label = theme_label_map.get(user_data.get('pptx_theme'), "🎲 Tasodifiy")
 
+    template_label_map = {
+        "classic": "📘 Klassik", "minimalist": "⬜ Minimalist", "bold": "🟨 Bold",
+        "corporate": "🏢 Korporativ", "modern": "✨ Zamonaviy", "dark": "🌙 Tungi",
+        "creative": "🎨 Ijodiy", "elegant": "🕊 Nafis", "infographic": "📊 Infografik",
+        "photo": "🖼 Rasm asosida",
+    }
+    template_label = template_label_map.get(user_data.get('pptx_template'), "📘 Klassik")
+
     text = "🎉 **Prezentatsiya Tayyor! Maʼlumotlarni Tekshiring.** 🎉\n\n"
     text += "📚 **Loyiha**\n"
     text += f"   • **Mavzu:** *{escaped_topic}*\n"
     text += f"   • **Til:** {user_data.get('lang', 'uz').upper()}\n"
-    text += f"   • **Dizayn:** {theme_label}\n"
+    text += f"   • **Shablon:** {template_label}\n"
+    text += f"   • **Rang:** {theme_label}\n"
     text += f"   • **Slaydlar soni:** {slide_count} ta\n"
     text += f"   • **Rasmlar:** {'Ha 🖼' if user_data.get('opt_images') else 'Yoʻq'}\n"
     text += f"   • **Grafik:** {chart_summary}\n"
@@ -945,6 +981,7 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
                 presentation_content,
                 temp_dir='temp_files',
                 theme_name=user_data.get('pptx_theme'),
+                template_name=user_data.get('pptx_template'),
                 options=pptx_options)
             # Fayl quyida (umumiy blokda) bir marta yuboriladi.
 
