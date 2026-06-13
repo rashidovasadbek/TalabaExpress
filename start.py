@@ -11,6 +11,7 @@ from ai_service import GeminiService
 from constants import HELP_MESSAGE, ADMIN_CARD_NUMBER, PRICING, PAYMENT_CHANNEL_ID
 from word_generator import generate_word_file, PAGE_TITLES 
 from pptx_generate import generate_pptx_file as generate_pptx
+from pexels_service import fetch_image as fetch_pexels_image
 from ai_service import GeminiService
 from datetime import datetime
 from inline import get_admin_receipt_action_keyboard
@@ -26,12 +27,19 @@ import traceback
 import base64
 
 class UserGeneration(StatesGroup):
-    choosing_language = State() 
+    choosing_theme = State()
+    choosing_language = State()
     waiting_for_topic = State()
     waiting_for_uni_faculty = State()
     waiting_for_student_info = State()
     choosing_for_group = State()
     choosing_page_count = State()
+    # Prezentatsiya uchun qo'shimcha tanlov bosqichlari
+    choosing_slide_count = State()   # foydalanuvchi aniq slayd sonini yozadi
+    choosing_images = State()        # rasm ha/yo'q
+    choosing_chart = State()         # grafik turi yoki yo'q
+    choosing_chart_count = State()   # nechta grafik
+    choosing_icons = State()         # ikona ha/yo'q
     waiting_for_confirmation = State()
 
 class Payment(StatesGroup):
@@ -86,6 +94,53 @@ def build_page_count_keyboard() -> types.InlineKeyboardMarkup:
         [types.InlineKeyboardButton(text="10 dan 15 gacha", callback_data="pages_10_15")],
         [types.InlineKeyboardButton(text="15 dan 20 gacha", callback_data="pages_15_20")],
         [types.InlineKeyboardButton(text="20 dan 30 gacha", callback_data="pages_21_30")],
+    ])
+
+def build_theme_keyboard() -> types.InlineKeyboardMarkup:
+    """Prezentatsiya rang mavzusini tanlash klaviaturasi."""
+    return types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="🌊 Okean (ko'k)", callback_data="theme_ocean")],
+        [types.InlineKeyboardButton(text="🌿 Zumrad (yashil)", callback_data="theme_emerald")],
+        [types.InlineKeyboardButton(text="🌇 Shafaq (binafsha)", callback_data="theme_sunset")],
+        [types.InlineKeyboardButton(text="🎲 Tasodifiy", callback_data="theme_random")],
+    ])
+
+def build_images_keyboard() -> types.InlineKeyboardMarkup:
+    """Slaydlarga rasm qo'shilsinmi (Pexels)."""
+    return types.InlineKeyboardMarkup(inline_keyboard=[
+        [
+            types.InlineKeyboardButton(text="🖼 Ha, rasm bilan", callback_data="img_yes"),
+            types.InlineKeyboardButton(text="🚫 Rasmsiz", callback_data="img_no"),
+        ],
+    ])
+
+def build_chart_keyboard() -> types.InlineKeyboardMarkup:
+    """Grafik turi (yoki grafiksiz)."""
+    return types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="📊 Ustunli grafik", callback_data="chart_column")],
+        [types.InlineKeyboardButton(text="📶 Chiziqli grafik", callback_data="chart_line")],
+        [types.InlineKeyboardButton(text="🥧 Doiraviy (pie)", callback_data="chart_pie")],
+        [types.InlineKeyboardButton(text="📋 Gorizontal (bar)", callback_data="chart_bar")],
+        [types.InlineKeyboardButton(text="🚫 Grafiksiz", callback_data="chart_none")],
+    ])
+
+def build_chart_count_keyboard() -> types.InlineKeyboardMarkup:
+    """Nechta grafik slaydi bo'lsin."""
+    return types.InlineKeyboardMarkup(inline_keyboard=[
+        [
+            types.InlineKeyboardButton(text="1 ta", callback_data="chartn_1"),
+            types.InlineKeyboardButton(text="2 ta", callback_data="chartn_2"),
+            types.InlineKeyboardButton(text="3 ta", callback_data="chartn_3"),
+        ],
+    ])
+
+def build_icons_keyboard() -> types.InlineKeyboardMarkup:
+    """Har slaydga ikona qo'shilsinmi."""
+    return types.InlineKeyboardMarkup(inline_keyboard=[
+        [
+            types.InlineKeyboardButton(text="✨ Ha, ikona bilan", callback_data="icon_yes"),
+            types.InlineKeyboardButton(text="➖ Ikonasiz", callback_data="icon_no"),
+        ],
     ])
 
 def build_slide_count_keyboard() -> types.InlineKeyboardMarkup:
@@ -214,14 +269,30 @@ async def handle_start_pptx(message: types.Message, state: FSMContext, bot: Bot,
             return
         
     await state.update_data(work_type = 'prezentatsiya')
-    
-    await state.set_state(UserGeneration.choosing_language)
-    
+
+    await state.set_state(UserGeneration.choosing_theme)
+
     await message.answer(
+        "🎨 Iltimos, prezentatsiya uchun **dizayn rangini** tanlang:",
+        reply_markup=build_theme_keyboard(),
+        parse_mode="Markdown"
+    )
+
+@router.callback_query(F.data.startswith("theme_"), UserGeneration.choosing_theme)
+async def theme_selected(callback: types.CallbackQuery, state: FSMContext):
+    theme_name = callback.data.split("_", 1)[1]  # ocean | emerald | sunset | random
+    if theme_name == "random":
+        theme_name = None  # generator tasodifiy tanlaydi
+
+    await state.update_data(pptx_theme=theme_name)
+    await state.set_state(UserGeneration.choosing_language)
+
+    await callback.message.edit_text(
         "Iltimos, prezentatsiya **qaysi tilda** yaratilishi kerakligini tanlang:",
         reply_markup=build_language_keyboard(),
         parse_mode="Markdown"
     )
+    await callback.answer()
 
 @router.message(F.text == "📘 Yo'riqnoma", StateFilter(None, "*"))
 async def handle_help_button_redirect(message: types.Message):
@@ -290,27 +361,26 @@ async def process_student_fio(message: types.Message, state: FSMContext):
 async def process_group_and_finish(message: types.Message, state: FSMContext):
         
     await state.update_data(student_group = message.text.strip())
-    
-    # --- TUZATILGAN LOGIKA: Oxirgi bosqich - Sahifalar/Slaydlar sonini so'rash ---
-    
-    await state.set_state(UserGeneration.choosing_page_count)
-    
+
     user_data = await state.get_data()
     work_type = user_data.get('work_type', 'refarat')
-    
+
     if work_type == 'prezentatsiya':
-        prompt_text = "Nechta **slayd**dan iborat prezentatsiya yaratish kerak?"
-        keyboard_builder = build_slide_count_keyboard() # Slayd soni uchun alohida klaviatura
+        # Prezentatsiya: foydalanuvchi aniq slayd sonini YOZADI (5-30)
+        await state.set_state(UserGeneration.choosing_slide_count)
+        await message.answer(
+            "🔢 Prezentatsiya **nechta slayd**dan iborat bo'lsin?\n\n"
+            "Iltimos, **5 dan 30 gacha** son yozib yuboring (masalan: `12`).",
+            parse_mode="Markdown"
+        )
     else:
-        prompt_text = "Sahifalar sonini oraliq ko'rinishida tanlang:"
-        keyboard_builder = build_page_count_keyboard() # Sahifalar soni uchun alohida klaviatura
-        
-    
-    await message.answer(
-        prompt_text,
-        reply_markup=keyboard_builder,
-        parse_mode="Markdown"
-    )
+        # Referat/Mustaqil ish: sahifalar sonini oraliq tugmalardan tanlash
+        await state.set_state(UserGeneration.choosing_page_count)
+        await message.answer(
+            "Sahifalar sonini oraliq ko'rinishida tanlang:",
+            reply_markup=build_page_count_keyboard(),
+            parse_mode="Markdown"
+        )
     
 @router.callback_query(F.data.startswith(("pages_", "slides_")), UserGeneration.choosing_page_count)
 async def show_data_for_confirmation(callback: types.CallbackQuery, state: FSMContext):
@@ -363,7 +433,140 @@ async def show_data_for_confirmation(callback: types.CallbackQuery, state: FSMCo
     )
     await callback.answer()
 
-@router.callback_query(F.data == "cancel_generation") 
+
+# ===========================================================================
+#  PREZENTATSIYA: aniq slayd soni + opsiya tanlash oqimi
+# ===========================================================================
+@router.message(UserGeneration.choosing_slide_count)
+async def process_slide_count(message: types.Message, state: FSMContext):
+    """Foydalanuvchi yozgan slayd sonini tekshiradi (5-30)."""
+    raw = (message.text or "").strip()
+    if not raw.isdigit():
+        await message.answer("❗️ Iltimos, faqat **son** yuboring (masalan: `12`).",
+                             parse_mode="Markdown")
+        return
+
+    count = int(raw)
+    if count < 5 or count > 30:
+        await message.answer("❗️ Slaydlar soni **5 dan 30 gacha** bo'lishi kerak. Qayta kiriting.",
+                             parse_mode="Markdown")
+        return
+
+    await state.update_data(slide_count=count)
+    await state.set_state(UserGeneration.choosing_images)
+    await message.answer(
+        f"✅ Slaydlar soni: **{count} ta**\n\n"
+        "🖼 Slaydlarga **mavzuga mos rasmlar** qo'shilsinmi?",
+        reply_markup=build_images_keyboard(),
+        parse_mode="Markdown"
+    )
+
+
+@router.callback_query(F.data.startswith("img_"), UserGeneration.choosing_images)
+async def images_selected(callback: types.CallbackQuery, state: FSMContext):
+    use_images = callback.data == "img_yes"
+    await state.update_data(opt_images=use_images)
+    await state.set_state(UserGeneration.choosing_chart)
+    await callback.message.edit_text(
+        f"🖼 Rasmlar: **{'Ha' if use_images else 'Yoʻq'}**\n\n"
+        "📊 Prezentatsiyada **grafik** bo'lsinmi? Turini tanlang:",
+        reply_markup=build_chart_keyboard(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("chart_"), UserGeneration.choosing_chart)
+async def chart_selected(callback: types.CallbackQuery, state: FSMContext):
+    chart_choice = callback.data.split("_", 1)[1]  # column|line|pie|bar|none
+    if chart_choice == "none":
+        await state.update_data(opt_chart_type=None, opt_chart_count=0)
+        await state.set_state(UserGeneration.choosing_icons)
+        await callback.message.edit_text(
+            "📊 Grafik: **Yo'q**\n\n"
+            "✨ Har bir slayd sarlavhasiga **mos ikona** qo'shilsinmi?",
+            reply_markup=build_icons_keyboard(),
+            parse_mode="Markdown"
+        )
+    else:
+        await state.update_data(opt_chart_type=chart_choice)
+        await state.set_state(UserGeneration.choosing_chart_count)
+        await callback.message.edit_text(
+            f"📊 Grafik turi tanlandi.\n\n"
+            "🔢 Nechta **grafik slaydi** bo'lsin?",
+            reply_markup=build_chart_count_keyboard(),
+            parse_mode="Markdown"
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("chartn_"), UserGeneration.choosing_chart_count)
+async def chart_count_selected(callback: types.CallbackQuery, state: FSMContext):
+    n = int(callback.data.split("_", 1)[1])
+    await state.update_data(opt_chart_count=n)
+    await state.set_state(UserGeneration.choosing_icons)
+    await callback.message.edit_text(
+        f"📊 Grafiklar soni: **{n} ta**\n\n"
+        "✨ Har bir slayd sarlavhasiga **mos ikona** qo'shilsinmi?",
+        reply_markup=build_icons_keyboard(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("icon_"), UserGeneration.choosing_icons)
+async def icons_selected(callback: types.CallbackQuery, state: FSMContext):
+    use_icons = callback.data == "icon_yes"
+    await state.update_data(opt_icons=use_icons)
+
+    user_data = await state.get_data()
+    chart_type = user_data.get('opt_chart_type')
+    chart_count = user_data.get('opt_chart_count', 0)
+    chart_label_map = {
+        "column": "Ustunli", "line": "Chiziqli", "pie": "Doiraviy", "bar": "Gorizontal",
+    }
+    if chart_type:
+        chart_summary = f"{chart_label_map.get(chart_type, chart_type)} × {chart_count}"
+    else:
+        chart_summary = "Yo'q"
+
+    slide_count = user_data.get('slide_count', 12)
+    cost = get_pptx_cost(slide_count)
+
+    escaped_topic = escape_markdown(user_data.get('topic', ''))
+    escaped_uni = escape_markdown(user_data.get('uni_faculty'))
+    escaped_student = escape_markdown(user_data.get('student_fio'))
+    escaped_group = escape_markdown(user_data.get('student_group'))
+
+    theme_label_map = {"ocean": "🌊 Okean", "emerald": "🌿 Zumrad", "sunset": "🌇 Shafaq"}
+    theme_label = theme_label_map.get(user_data.get('pptx_theme'), "🎲 Tasodifiy")
+
+    text = "🎉 **Prezentatsiya Tayyor! Maʼlumotlarni Tekshiring.** 🎉\n\n"
+    text += "📚 **Loyiha**\n"
+    text += f"   • **Mavzu:** *{escaped_topic}*\n"
+    text += f"   • **Til:** {user_data.get('lang', 'uz').upper()}\n"
+    text += f"   • **Dizayn:** {theme_label}\n"
+    text += f"   • **Slaydlar soni:** {slide_count} ta\n"
+    text += f"   • **Rasmlar:** {'Ha 🖼' if user_data.get('opt_images') else 'Yoʻq'}\n"
+    text += f"   • **Grafik:** {chart_summary}\n"
+    text += f"   • **Ikonalar:** {'Ha ✨' if use_icons else 'Yoʻq'}\n\n"
+    text += "👤 **Muallif**\n"
+    text += f"   • **Kafedra:** {escaped_uni or '— *Kiritilmagan*'}\n"
+    text += f"   • **F.I.O.:** {escaped_student or '— *Kiritilmagan*'}\n"
+    text += f"   • **Guruh:** {escaped_group or '— *Kiritilmagan*'}\n\n"
+    text += f"💰 **Narxi:** {cost:,.0f} soʻm\n\n"
+    text += "✅ **Toʻgʻri boʻlsa, TASDIQLANG.**"
+
+    await state.set_state(UserGeneration.waiting_for_confirmation)
+    await callback.message.edit_text(
+        text,
+        reply_markup=build_confirmation_keyboard(),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "cancel_generation")
 async def cancel_generation(callback: types.CallbackQuery, state: FSMContext):
     """
     Generatsiya jarayonini butunlay bekor qiladi va boshlang'ich holatga qaytaradi.
@@ -501,6 +704,20 @@ def get_cost_from_range(range_key_raw: str) -> float:
         print(f"ERROR in get_cost_from_range: {e}")
         return 0.0
 
+def get_pptx_cost(slide_count: int) -> float:
+    """Prezentatsiya narxini slaydlar soniga qarab qaytaradi."""
+    try:
+        n = int(slide_count)
+    except (TypeError, ValueError):
+        n = 12
+    if n <= 12:
+        return float(PRICING.get('10-15', 7000))
+    elif n <= 18:
+        return float(PRICING.get('15-20', 9000))
+    else:
+        return float(PRICING.get('21-30', 11000))
+
+
 @router.callback_query(F.data == "confirm_data", UserGeneration.waiting_for_confirmation)
 async def final_generation_start(callback:types.CallbackQuery, state: FSMContext, db:Database):
     user_data = await state.get_data()
@@ -509,9 +726,12 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
     work_id = None # ai_works jadvali uchun ID
     
     work_type = user_data.get('work_type', 'refarat')
-    page_count_raw = user_data.get("page_count", "15_20") 
-    
-    cost = get_cost_from_range(str(page_count_raw))
+    page_count_raw = user_data.get("page_count", "15_20")
+
+    if work_type == 'prezentatsiya':
+        cost = get_pptx_cost(user_data.get('slide_count', 12))
+    else:
+        cost = get_cost_from_range(str(page_count_raw))
     tr_type = "generation"
     
     user_balance = await db.get_user_balance(user_id) 
@@ -639,24 +859,18 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
         academic_year_str = f"{academic_year_start}-{academic_year_end}"
         
         if work_type == 'prezentatsiya':
-           
-            # try:
-            #     min_c, max_c = map(int, user_data.get("page_count", "15_20").split('_'))
-            #     num_slides = int((min_c + max_c) / 2) 
-            # except:
-            #     num_slides = 15
-            try:
-    # Har qanday formatdan faqat sonlarni ajratib olamiz
-                import re
-                numbers = re.findall(r'\d+', str(page_count_raw))
-                if len(numbers) >= 2:
-                    min_c, max_c = int(numbers[0]), int(numbers[1])
-                    num_slides = int((min_c + max_c) / 2)
-                else:
-                    num_slides = 15 # Default
-            except:
-                num_slides = 15
-                
+
+            # Foydalanuvchi yozgan aniq slayd soni
+            num_slides = int(user_data.get('slide_count', 12))
+
+            # Foydalanuvchi tanlagan opsiyalar
+            pptx_options = {
+                "images": bool(user_data.get('opt_images')),
+                "icons": bool(user_data.get('opt_icons')),
+                "chart_type": user_data.get('opt_chart_type'),
+                "chart_count": int(user_data.get('opt_chart_count', 0)),
+            }
+
             slide_titles_list = await gemini_service.generate_slide_titles(
             topic=topic,
             num_slides=num_slides,
@@ -693,25 +907,29 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
                     slide_title=title,
                     lang=selected_lang_code
                 )
-                
-                # Sarlavha va kontentni umumiy ro'yxatga saqlash
-                presentation_content.append({
-                    "title": title,
-                    "content": content_text
-                })
-                
+
+                slide_item = {"title": title, "content": content_text, "image": None}
+
+                # Agar rasm tanlangan bo'lsa — mavzuga mos rasmni Pexels'dan yuklash
+                if pptx_options["images"]:
+                    try:
+                        keyword = await gemini_service.generate_image_keyword(topic, title)
+                        img_path = await fetch_pexels_image(keyword, 'temp_files')
+                        slide_item["image"] = img_path
+                    except Exception as e:
+                        logging.warning(f"Rasm yuklashda xato ({title}): {e}")
+                        slide_item["image"] = None
+
+                presentation_content.append(slide_item)
+
             await callback.message.edit_text("✅ **Kontent to'liq generatsiya qilindi.** Hujjat tayyorlanmoqda...")
-            
-            BASE_DIR = os.getcwd() 
-            TEMPLATE_FOLDER = os.path.join(BASE_DIR, 'templates')
-            DEFAULT_THEME_PATH = os.path.join(TEMPLATE_FOLDER, 'minimal_clean.pptx') 
-            print(DEFAULT_THEME_PATH)
-            
+
             file_path = await generate_pptx(
-                doc_data, 
+                doc_data,
                 presentation_content,
                 temp_dir='temp_files',
-                theme_path = DEFAULT_THEME_PATH) 
+                theme_name=user_data.get('pptx_theme'),
+                options=pptx_options)
             
             await callback.message.answer_document(
                 document=FSInputFile(file_path),

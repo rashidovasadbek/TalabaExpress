@@ -25,8 +25,10 @@ class GeminiService:
         self.client = genai.Client(api_key=api_key)
         
         # 3. Modelni tanlash (Tezlik va sifat uchun)
-        self.model = 'gemini-2.5-flash' 
-        self.model_to_ppt = 'Gemini Robotics ER 1.5 Preview'
+        self.model = 'gemini-2.5-flash'
+        # Prezentatsiya generatsiyasi ham asosiy ishlaydigan model orqali amalga oshiriladi.
+        # (Avvalgi 'Gemini Robotics ER 1.5 Preview' yaroqsiz model ID edi va xato berardi.)
+        self.model_to_ppt = 'gemini-2.5-flash'
         self.content_config = {
         "temperature": 0.7,
         "max_output_tokens": 8192,
@@ -252,6 +254,43 @@ class GeminiService:
             print(f"[VISUAL SUGGESTION] Kutilmagan Xato: {e}")
             return "Infographic" 
             
+    async def generate_image_keyword(self, topic: str, slide_title: str) -> str:
+        """
+        Slayd uchun Pexels'da rasm qidirish maqsadida qisqa inglizcha kalit so'z generatsiya qiladi.
+        Har doim inglizcha qaytaradi (stock rasm qidiruvi ingliz tilida yaxshiroq ishlaydi).
+        """
+        prompt = (
+            f"You generate short English image-search keywords for a stock photo website (Pexels).\n"
+            f"Presentation topic: '{topic}'.\n"
+            f"Current slide title: '{slide_title}'.\n"
+            f"Return ONE concise English search phrase (2-4 words) describing a real, photographable "
+            f"scene or object that visually represents this slide. "
+            f"Avoid abstract words like 'introduction' or 'conclusion'; instead pick a concrete visual "
+            f"related to the topic. Output ONLY the phrase, no quotes, no punctuation, no explanation."
+        )
+        try:
+            for attempt in range(2):
+                try:
+                    response = await asyncio.to_thread(
+                        self.client.models.generate_content,
+                        model=self.model,
+                        contents=prompt
+                    )
+                    kw = (response.text or "").strip()
+                    kw = kw.replace('"', '').replace("'", '').replace('.', '').replace('\n', ' ').strip()
+                    return kw or topic
+                except APIError as e:
+                    error_msg = str(e).upper()
+                    if '503' in error_msg or 'UNAVAILABLE' in error_msg or 'RATE LIMIT EXCEEDED' in error_msg:
+                        await asyncio.sleep(2 * (attempt + 1))
+                    else:
+                        print(f"[IMG KEYWORD] API Xatosi: {e}")
+                        break
+            return topic
+        except Exception as e:
+            print(f"[IMG KEYWORD] Kutilmagan Xato: {e}")
+            return topic
+
     async def generate_slide_titles(self, topic: str, num_slides: int, lang: str) -> str:
         """Berilgan mavzu uchun slayd sarlavhalari ro'yxatini (rejasini) generatsiya qiladi (Qayta urinish logikasi bilan)."""
         
@@ -266,14 +305,17 @@ class GeminiService:
 
         prompt = (
             f"Generate exactly {num_slides} short, professional, and concise slide titles "
-            f"for a presentation on the topic: '{topic}'. "
-            f"The presentation MUST be logically divided into the following key sections: "
-            f"(1) Fundamentals (Asosiy tushunchalar), (2) Core Technology (Texnologiya: LLM), and (3) Social Impact (Ijtimoiy ta'sir). "
-            f"Ensure the titles cover these parts equally.\n"
-            
-            f"The titles MUST include 'Introduction', 'Conclusion', and 'References/Q&A' (or their equivalents in the target language).\n"
-            
-            f"The ENTIRE output must be a clean, numbered list of titles ONLY, without any section headings, explanations, or the topic title. "
+            f"for an academic presentation on the topic: '{topic}'.\n"
+            f"The titles MUST be derived strictly from THIS specific topic and its own logical structure — "
+            f"do NOT use generic or unrelated sections.\n"
+            f"Build a natural flow for this topic, for example: an opening/introduction, several core sections that "
+            f"break the topic down into its main aspects (concepts, history, types, processes, advantages, "
+            f"challenges, real-world examples or applications — whichever genuinely fit '{topic}'), "
+            f"and a closing conclusion.\n"
+            f"The first title MUST be an Introduction and the last title MUST be a Conclusion "
+            f"(or their equivalents in the target language).\n"
+            f"The ENTIRE output must be a clean, numbered list of titles ONLY, without any section headings, "
+            f"explanations, parentheses, or the topic title itself. "
             f"Use **{target_lang}**."
         )
         
