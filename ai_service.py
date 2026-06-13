@@ -943,6 +943,136 @@ class GeminiService:
             print(f"[{target_lang}] Tarjima 3 urinishdan keyin ham bajarilmadi.")
             return text # Tarjima qilinmagan asl matnni qaytarish xavfsizroq
 
+    # ===================================================================
+    #  Prezentatsiya uchun qo'shimcha professional kontent
+    # ===================================================================
+    _LANG_MAP_PPTX = {
+        'uz': 'Uzbek (Latin script)',
+        'kr': 'Uzbek (Cyrillic script)',
+        'ru': 'Russian',
+        'en': 'English',
+    }
+
+    async def generate_speaker_notes(self, topic: str, slide_title: str, slide_content: str, lang: str) -> str:
+        """Bitta slayd uchun ma'ruzachi izohlari (gapiriladigan matn)."""
+        target = self._LANG_MAP_PPTX.get(lang, 'Uzbek (Latin script)')
+        prompt = (
+            f"You are helping a student present a slide. Topic: '{topic}'. "
+            f"Slide title: '{slide_title}'. Slide bullet points:\n{slide_content}\n\n"
+            f"Write a short, natural speaker script (3-4 sentences) the student can READ ALOUD "
+            f"while showing this slide. Expand briefly on the bullets, do not just repeat them. "
+            f"Plain text only, no markdown, no headings. Write in {target}."
+        )
+        try:
+            for attempt in range(2):
+                try:
+                    response = await asyncio.to_thread(
+                        self.client.models.generate_content, model=self.model, contents=prompt
+                    )
+                    return (response.text or "").strip()
+                except APIError as e:
+                    if '503' in str(e).upper() or 'UNAVAILABLE' in str(e).upper() or 'RATE LIMIT' in str(e).upper():
+                        await asyncio.sleep(2 * (attempt + 1))
+                    else:
+                        break
+            return ""
+        except Exception as e:
+            print(f"[SPEAKER NOTES] Xato: {e}")
+            return ""
+
+    async def generate_table_data(self, topic: str, lang: str) -> dict | None:
+        """Mavzuga mos taqqoslash jadvali ma'lumotlari (JSON)."""
+        target = self._LANG_MAP_PPTX.get(lang, 'Uzbek (Latin script)')
+        system_prompt = (
+            "You create a concise comparison table for a presentation slide. "
+            "Return 2-3 columns and 3-5 rows of meaningful, accurate data for the topic. "
+            "Keep each cell very short (a few words). Return only JSON."
+        )
+        schema = Schema(
+            type=Type.OBJECT,
+            properties={
+                "title": Schema(type=Type.STRING),
+                "headers": Schema(type=Type.ARRAY, items=Schema(type=Type.STRING)),
+                "rows": Schema(type=Type.ARRAY, items=Schema(type=Type.ARRAY, items=Schema(type=Type.STRING))),
+            },
+            required=["title", "headers", "rows"],
+        )
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            response_mime_type="application/json",
+            response_schema=schema,
+        )
+        contents = [types.Content(parts=[types.Part(text=f"Mavzu: '{topic}'. Jadvalni {target} tilida tuzing.")])]
+        try:
+            for attempt in range(2):
+                try:
+                    response = await asyncio.to_thread(
+                        self.client.models.generate_content, model=self.model, contents=contents, config=config
+                    )
+                    if not response.text:
+                        raise ValueError("bo'sh")
+                    data = json.loads(response.text.strip())
+                    if data.get("headers") and data.get("rows"):
+                        return data
+                    return None
+                except (APIError, json.JSONDecodeError, ValueError):
+                    await asyncio.sleep(2 * (attempt + 1))
+            return None
+        except Exception as e:
+            print(f"[TABLE] Xato: {e}")
+            return None
+
+    async def generate_timeline_data(self, topic: str, lang: str) -> dict | None:
+        """Mavzu uchun bosqichli timeline (4-5 qadam)."""
+        target = self._LANG_MAP_PPTX.get(lang, 'Uzbek (Latin script)')
+        system_prompt = (
+            "You create a timeline / step-by-step process for a presentation slide. "
+            "Return 4 or 5 ordered steps. Each step has a SHORT label (1-3 words) and a SHORT description (max 10 words). "
+            "Return only JSON."
+        )
+        schema = Schema(
+            type=Type.OBJECT,
+            properties={
+                "title": Schema(type=Type.STRING),
+                "steps": Schema(
+                    type=Type.ARRAY,
+                    items=Schema(
+                        type=Type.OBJECT,
+                        properties={
+                            "label": Schema(type=Type.STRING),
+                            "text": Schema(type=Type.STRING),
+                        },
+                        required=["label", "text"],
+                    ),
+                ),
+            },
+            required=["title", "steps"],
+        )
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            response_mime_type="application/json",
+            response_schema=schema,
+        )
+        contents = [types.Content(parts=[types.Part(text=f"Mavzu: '{topic}'. Timeline'ni {target} tilida tuzing.")])]
+        try:
+            for attempt in range(2):
+                try:
+                    response = await asyncio.to_thread(
+                        self.client.models.generate_content, model=self.model, contents=contents, config=config
+                    )
+                    if not response.text:
+                        raise ValueError("bo'sh")
+                    data = json.loads(response.text.strip())
+                    if data.get("steps"):
+                        return data
+                    return None
+                except (APIError, json.JSONDecodeError, ValueError):
+                    await asyncio.sleep(2 * (attempt + 1))
+            return None
+        except Exception as e:
+            print(f"[TIMELINE] Xato: {e}")
+            return None
+
         except Exception as e:
                 print(f"Gemini API xatosi (Tarjima): {e}")
                 # Xato bo'lsa ham, asl matnni qaytarish xavfsizroq, hujjati buzilmasligi uchun

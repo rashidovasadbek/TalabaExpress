@@ -42,6 +42,7 @@ class UserGeneration(StatesGroup):
     choosing_chart = State()         # grafik turi yoki yo'q
     choosing_chart_count = State()   # nechta grafik
     choosing_icons = State()         # ikona ha/yo'q
+    choosing_extras = State()        # professional qo'shimchalar (toggle menyu)
     waiting_for_confirmation = State()
 
 class Payment(StatesGroup):
@@ -168,6 +169,23 @@ def build_icons_keyboard() -> types.InlineKeyboardMarkup:
             types.InlineKeyboardButton(text="➖ Ikonasiz", callback_data="icon_no"),
         ],
     ])
+
+# Professional qo'shimchalar toggle menyusi
+EXTRA_ITEMS = [
+    ("notes",     "🗣 Ma'ruzachi izohlari (speaker notes)"),
+    ("structure", "📑 Reja + bo'lim ajratuvchilar"),
+    ("refs_qa",   "📚 Adabiyotlar + Savol-javob"),
+    ("visuals",   "📊 Jadval + timeline"),
+]
+
+def build_extras_keyboard(data: dict) -> types.InlineKeyboardMarkup:
+    """Tanlangan qo'shimchalarni ✅/⬜ bilan ko'rsatuvchi toggle menyu."""
+    rows = []
+    for key, label in EXTRA_ITEMS:
+        mark = "✅" if data.get(f"opt_{key}") else "⬜"
+        rows.append([types.InlineKeyboardButton(text=f"{mark} {label}", callback_data=f"ext_{key}")])
+    rows.append([types.InlineKeyboardButton(text="➡️ Davom etish", callback_data="ext_done")])
+    return types.InlineKeyboardMarkup(inline_keyboard=rows)
 
 def build_slide_count_keyboard() -> types.InlineKeyboardMarkup:
     """PPTX uchun slaydlar sonini tanlash tugmalarini yaratadi."""
@@ -556,7 +574,38 @@ async def chart_count_selected(callback: types.CallbackQuery, state: FSMContext)
 async def icons_selected(callback: types.CallbackQuery, state: FSMContext):
     use_icons = callback.data == "icon_yes"
     await state.update_data(opt_icons=use_icons)
+    await state.set_state(UserGeneration.choosing_extras)
+    data = await state.get_data()
+    await callback.message.edit_text(
+        "🧩 **Professional qo'shimchalar**\n\n"
+        "Kerakli bandlarni belgilang (bosib yoqing/o'chiring), so'ng **Davom etish**ni bosing:",
+        reply_markup=build_extras_keyboard(data),
+        parse_mode="Markdown"
+    )
+    await callback.answer()
 
+
+@router.callback_query(F.data.startswith("ext_"), UserGeneration.choosing_extras)
+async def extras_toggle(callback: types.CallbackQuery, state: FSMContext):
+    action = callback.data.split("_", 1)[1]
+    if action == "done":
+        await _show_pptx_confirmation(callback, state)
+        await callback.answer()
+        return
+    # toggle qilish
+    key = f"opt_{action}"
+    data = await state.get_data()
+    await state.update_data(**{key: not data.get(key)})
+    data = await state.get_data()
+    try:
+        await callback.message.edit_reply_markup(reply_markup=build_extras_keyboard(data))
+    except Exception:
+        pass
+    await callback.answer()
+
+
+async def _show_pptx_confirmation(callback: types.CallbackQuery, state: FSMContext):
+    use_icons = bool((await state.get_data()).get('opt_icons'))
     user_data = await state.get_data()
     chart_type = user_data.get('opt_chart_type')
     chart_count = user_data.get('opt_chart_count', 0)
@@ -602,7 +651,9 @@ async def icons_selected(callback: types.CallbackQuery, state: FSMContext):
     text += f"   • **Slaydlar soni:** {slide_count} ta\n"
     text += f"   • **Rasmlar:** {'Ha 🖼' if user_data.get('opt_images') else 'Yoʻq'}\n"
     text += f"   • **Grafik:** {chart_summary}\n"
-    text += f"   • **Ikonalar:** {'Ha ✨' if use_icons else 'Yoʻq'}\n\n"
+    text += f"   • **Ikonalar:** {'Ha ✨' if use_icons else 'Yoʻq'}\n"
+    extras_on = [lbl for k, lbl in EXTRA_ITEMS if user_data.get(f"opt_{k}")]
+    text += f"   • **Qo'shimchalar:** {', '.join(extras_on) if extras_on else 'Yoʻq'}\n\n"
     text += "👤 **Muallif**\n"
     text += f"   • **Kafedra:** {escaped_uni or '— *Kiritilmagan*'}\n"
     text += f"   • **F.I.O.:** {escaped_student or '— *Kiritilmagan*'}\n"
@@ -616,7 +667,6 @@ async def icons_selected(callback: types.CallbackQuery, state: FSMContext):
         reply_markup=build_confirmation_keyboard(),
         parse_mode="Markdown"
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data == "cancel_generation")
@@ -917,12 +967,35 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
             num_slides = int(user_data.get('slide_count', 12))
 
             # Foydalanuvchi tanlagan opsiyalar
+            opt_notes = bool(user_data.get('opt_notes'))
+            opt_refs_qa = bool(user_data.get('opt_refs_qa'))
+            opt_visuals = bool(user_data.get('opt_visuals'))
             pptx_options = {
                 "images": bool(user_data.get('opt_images')),
                 "icons": bool(user_data.get('opt_icons')),
                 "chart_type": user_data.get('opt_chart_type'),
                 "chart_count": int(user_data.get('opt_chart_count', 0)),
+                "structure": bool(user_data.get('opt_structure')),
+                "refs_qa": opt_refs_qa,
+                "visuals": opt_visuals,
             }
+
+            # Qo'shimcha ma'lumotlarni (adabiyotlar, jadval, timeline) oldindan yig'amiz
+            if opt_refs_qa:
+                try:
+                    pptx_options["references_text"] = await gemini_service.generate_references_list(
+                        topic=topic, lang=selected_lang_code, num_references=6)
+                except Exception as e:
+                    logging.warning(f"References xato: {e}")
+            if opt_visuals:
+                try:
+                    pptx_options["table_data"] = await gemini_service.generate_table_data(topic, selected_lang_code)
+                except Exception as e:
+                    logging.warning(f"Table xato: {e}")
+                try:
+                    pptx_options["timeline_data"] = await gemini_service.generate_timeline_data(topic, selected_lang_code)
+                except Exception as e:
+                    logging.warning(f"Timeline xato: {e}")
 
             slide_titles_list = await gemini_service.generate_slide_titles(
             topic=topic,
@@ -961,7 +1034,7 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
                     lang=selected_lang_code
                 )
 
-                slide_item = {"title": title, "content": content_text, "image": None}
+                slide_item = {"title": title, "content": content_text, "image": None, "notes": None}
 
                 # Agar rasm tanlangan bo'lsa — mavzuga mos rasmni Pexels'dan yuklash
                 if pptx_options["images"]:
@@ -972,6 +1045,14 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
                     except Exception as e:
                         logging.warning(f"Rasm yuklashda xato ({title}): {e}")
                         slide_item["image"] = None
+
+                # Ma'ruzachi izohlari (speaker notes)
+                if opt_notes:
+                    try:
+                        slide_item["notes"] = await gemini_service.generate_speaker_notes(
+                            topic, title, content_text, selected_lang_code)
+                    except Exception as e:
+                        logging.warning(f"Speaker notes xato ({title}): {e}")
 
                 presentation_content.append(slide_item)
 

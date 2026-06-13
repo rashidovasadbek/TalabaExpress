@@ -720,7 +720,7 @@ _TITLES = {
 # ---------------------------------------------------------------------------
 # Kontent / grafik / yakun slaydlari
 # ---------------------------------------------------------------------------
-def _build_content_slide(prs, ctx, title, bullets, index, total, topic, image_path, icons, parity):
+def _build_content_slide(prs, ctx, title, bullets, index, total, topic, image_path, icons, parity, notes=None):
     s = _blank_slide(prs)
     _fill_background(s, ctx["bg"])
     if not bullets:
@@ -733,6 +733,11 @@ def _build_content_slide(prs, ctx, title, bullets, index, total, topic, image_pa
         print(f"⚠️ '{fam}' oila xato, standartga qaytildi: {e}")
         _fam_standard(s, ctx, title, bullets, hi, image_path, icons, parity)
     _add_footer(s, ctx, index, total, topic, show_topic=(fam not in _PANEL_FAMILIES))
+    if notes:
+        try:
+            s.notes_slide.notes_text_frame.text = notes
+        except Exception:
+            pass
     return s
 
 
@@ -791,6 +796,145 @@ def _build_closing_slide(prs, ctx, d):
     return s
 
 
+# ---- Qo'shimcha professional slaydlar ----
+def _build_agenda_slide(prs, ctx, titles, index, total, topic):
+    s = _blank_slide(prs)
+    _fill_background(s, ctx["bg"])
+    _header(s, ctx, "Reja")
+    items = [t for t in titles][:8]
+    box = s.shapes.add_textbox(Inches(1.0), Inches(1.95), Inches(11.3), Inches(4.8))
+    tf = box.text_frame
+    tf.word_wrap = True
+    tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+    for i, t in enumerate(items):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p.space_after = Pt(10)
+        m = p.add_run()
+        m.text = f"{i+1}.  "
+        m.font.size = Pt(18)
+        m.font.bold = True
+        m.font.name = ctx["font"]
+        m.font.color.rgb = ctx["accent"]
+        r = p.add_run()
+        r.text = _shorten(t, 90)
+        r.font.size = Pt(18)
+        r.font.name = ctx["font"]
+        r.font.color.rgb = ctx["text"]
+    _add_footer(s, ctx, index, total, topic)
+    return s
+
+
+def _build_section_divider(prs, ctx, label, subtitle):
+    s = _blank_slide(prs)
+    _fill_background(s, ctx["primary"])
+    _add_rect(s, Inches(0), Inches(0), Inches(0.28), SLIDE_H, ctx["accent"])
+    _add_text(s, Inches(1.2), Inches(2.4), Inches(10.9), Inches(1.2), label, 26, ctx["accent2"], bold=True, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+    _add_rect(s, Inches(1.25), Inches(3.7), Inches(2.2), Inches(0.1), ctx["accent"])
+    _add_text(s, Inches(1.2), Inches(3.95), Inches(10.9), Inches(1.8), _shorten(subtitle, 80), 34, ctx["on_dark"], bold=True, anchor=MSO_ANCHOR.TOP, font=ctx["font"])
+    return s
+
+
+def _build_references_slide(prs, ctx, refs_text, index, total, topic):
+    s = _blank_slide(prs)
+    _fill_background(s, ctx["bg"])
+    _header(s, ctx, "Foydalanilgan adabiyotlar")
+    refs = [r.strip() for r in (refs_text or "").split("\n") if r.strip()][:8]
+    if not refs:
+        refs = ["Internet manbalari va darsliklar."]
+    box = s.shapes.add_textbox(Inches(1.0), Inches(1.95), Inches(11.3), Inches(4.8))
+    tf = box.text_frame
+    tf.word_wrap = True
+    tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+    for i, r in enumerate(refs):
+        r = r.lstrip("0123456789.)-•* ").strip()
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p.space_after = Pt(8)
+        p.line_spacing = 1.05
+        m = p.add_run()
+        m.text = f"{i+1}.  "
+        m.font.size = Pt(14)
+        m.font.bold = True
+        m.font.name = ctx["font"]
+        m.font.color.rgb = ctx["accent"]
+        rn = p.add_run()
+        rn.text = _shorten(r, 150)
+        rn.font.size = Pt(14)
+        rn.font.name = ctx["font"]
+        rn.font.color.rgb = ctx["text"]
+    _add_footer(s, ctx, index, total, topic)
+    return s
+
+
+def _build_qa_slide(prs, ctx):
+    s = _blank_slide(prs)
+    _fill_background(s, ctx["primary"])
+    _add_rect(s, Inches(0), Inches(0), Inches(0.28), SLIDE_H, ctx["accent"])
+    _add_text(s, Inches(0.9), Inches(2.6), Inches(11.5), Inches(1.6), "Savollaringiz bormi?", 44, ctx["on_dark"], bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+    _add_rect(s, Inches(5.86), Inches(4.3), Inches(1.6), Inches(0.08), ctx["accent"])
+    _add_text(s, Inches(0.9), Inches(4.6), Inches(11.5), Inches(0.7), "Javob berishdan mamnun bo'laman", 18, ctx["accent2"], align=PP_ALIGN.CENTER, font=ctx["font"])
+    return s
+
+
+def _build_table_slide(prs, ctx, td, index, total, topic):
+    s = _blank_slide(prs)
+    _fill_background(s, ctx["bg"])
+    _header(s, ctx, td.get("title") or "Taqqoslash jadvali")
+    headers = td.get("headers") or []
+    rows = td.get("rows") or []
+    rows = [r for r in rows if r][:5]
+    ncol = max(1, len(headers))
+    nrow = len(rows) + 1
+    gx = s.shapes.add_table(nrow, ncol, Inches(1.0), Inches(2.0), Inches(11.3), Inches(0.8 + 0.7 * len(rows)))
+    table = gx.table
+    for c in range(ncol):
+        cell = table.cell(0, c)
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = ctx["primary"]
+        cell.text = str(headers[c]) if c < len(headers) else ""
+        para = cell.text_frame.paragraphs[0]
+        para.font.size = Pt(14)
+        para.font.bold = True
+        para.font.name = ctx["font"]
+        para.font.color.rgb = ctx["on_dark"]
+    for ri, row in enumerate(rows, start=1):
+        for c in range(ncol):
+            cell = table.cell(ri, c)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = ctx["theme"]["light"] if ri % 2 else WHITE
+            cell.text = str(row[c]) if c < len(row) else ""
+            para = cell.text_frame.paragraphs[0]
+            para.font.size = Pt(12)
+            para.font.name = ctx["font"]
+            para.font.color.rgb = ctx["theme"]["text"]
+    _add_footer(s, ctx, index, total, topic)
+    return s
+
+
+def _build_timeline_slide(prs, ctx, tl, index, total, topic):
+    s = _blank_slide(prs)
+    _fill_background(s, ctx["bg"])
+    _header(s, ctx, tl.get("title") or "Bosqichlar")
+    steps = (tl.get("steps") or [])[:5]
+    n = max(1, len(steps))
+    margin = 1.0
+    avail = 11.33
+    bw = avail / n
+    cy = 4.0
+    # bog'lovchi chiziq
+    _add_rect(s, Inches(margin + bw / 2), Inches(cy - 0.01), Inches(avail - bw), Inches(0.05), ctx["line"])
+    for i, st in enumerate(steps):
+        cx = margin + bw * i + bw / 2
+        # raqamli doira
+        _add_rect(s, Inches(cx - 0.45), Inches(cy - 0.45), Inches(0.9), Inches(0.9), ctx["accent"], shape=MSO_SHAPE.OVAL)
+        _add_text(s, Inches(cx - 0.45), Inches(cy - 0.45), Inches(0.9), Inches(0.9), str(i + 1), 20, ctx["on_dark"], bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE, font=ctx["font"])
+        # label (tepada)
+        _add_text(s, Inches(cx - bw / 2 + 0.1), Inches(2.4), Inches(bw - 0.2), Inches(1.0), _shorten(st.get("label", ""), 30), 14, ctx["title"], bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.BOTTOM, font=ctx["font"])
+        # text (pastda)
+        _add_text(s, Inches(cx - bw / 2 + 0.1), Inches(4.7), Inches(bw - 0.2), Inches(1.6), _shorten(st.get("text", ""), 70), 12, ctx["text"], align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.TOP, font=ctx["font"])
+    _add_footer(s, ctx, index, total, topic)
+    return s
+
+
 # ---------------------------------------------------------------------------
 # Asosiy funksiya
 # ---------------------------------------------------------------------------
@@ -839,7 +983,17 @@ async def generate_pptx_file(doc_data, presentation_content, temp_dir,
             print(f"⚠️ Grafik ma'lumoti olinmadi: {e}")
             chart_dicts = []
 
+    # Qo'shimcha professional opsiyalar
+    use_structure = bool(options.get("structure"))
+    use_refs_qa = bool(options.get("refs_qa"))
+    references_text = options.get("references_text") or ""
+    table_data = options.get("table_data") if options.get("visuals") else None
+    timeline_data = options.get("timeline_data") if options.get("visuals") else None
+
     tc = len(presentation_content)
+    titles = [it.get("title", f"Slayd {i+1}") for i, it in enumerate(presentation_content)]
+
+    # Grafik joylashuvi
     chart_positions = {}
     if chart_dicts and tc > 0:
         step = max(1, tc // (len(chart_dicts) + 1))
@@ -849,10 +1003,42 @@ async def generate_pptx_file(doc_data, presentation_content, temp_dir,
                 pos += 1
             chart_positions[pos] = ci
 
-    total_slides = 1 + tc + len(chart_dicts) + 1
-    counter = 1
+    # Bo'lim ajratuvchilar (boshlang'ich slaydni hisobga olmagan holda)
+    divider_positions = {}
+    if use_structure and tc >= 6:
+        b1, b2 = tc // 3, (2 * tc) // 3
+        if b1 > 0:
+            divider_positions[b1] = ("II BO'LIM", titles[b1] if b1 < tc else "")
+        if b2 > b1:
+            divider_positions[b2] = ("III BO'LIM", titles[b2] if b2 < tc else "")
+
+    table_pos = (tc // 2) if table_data else -1
+    timeline_pos = ((2 * tc) // 3) if timeline_data else -1
+
+    # Umumiy slaydlar soni (footer uchun)
+    total_slides = (1
+                    + (1 if use_structure else 0)
+                    + len(divider_positions)
+                    + tc
+                    + len(chart_dicts)
+                    + (1 if table_data else 0)
+                    + (1 if timeline_data else 0)
+                    + (1 if use_refs_qa else 0)   # adabiyotlar
+                    + (1 if use_refs_qa else 0)   # Q&A
+                    + 1)                          # yakun
+    counter = 1  # titul
+
+    # Reja (mundarija)
+    if use_structure:
+        counter += 1
+        _build_agenda_slide(prs, ctx, titles, counter, total_slides, topic)
+
     used = set()
     for i, item in enumerate(presentation_content):
+        if i in divider_positions:
+            label, sub = divider_positions[i]
+            counter += 1
+            _build_section_divider(prs, ctx, label, sub)
         if i in chart_positions:
             ci = chart_positions[i]
             if ci not in used:
@@ -862,12 +1048,26 @@ async def generate_pptx_file(doc_data, presentation_content, temp_dir,
         counter += 1
         bullets = _clean_bullets(item.get("content", ""))
         _build_content_slide(prs, ctx, item.get("title", f"Slayd {i+1}"), bullets,
-                             counter, total_slides, topic, item.get("image"), use_icons, parity=i)
+                             counter, total_slides, topic, item.get("image"), use_icons,
+                             parity=i, notes=item.get("notes"))
+        if i == table_pos and table_data:
+            counter += 1
+            _build_table_slide(prs, ctx, table_data, counter, total_slides, topic)
+        if i == timeline_pos and timeline_data:
+            counter += 1
+            _build_timeline_slide(prs, ctx, timeline_data, counter, total_slides, topic)
 
     for ci in range(len(chart_dicts)):
         if ci not in used:
             counter += 1
             _build_chart_slide(prs, ctx, chart_dicts[ci], counter, total_slides, topic, chart_type=chart_type)
+
+    # Adabiyotlar + Q&A
+    if use_refs_qa:
+        counter += 1
+        _build_references_slide(prs, ctx, references_text, counter, total_slides, topic)
+        counter += 1
+        _build_qa_slide(prs, ctx)
 
     _build_closing_slide(prs, ctx, doc_data)
 
