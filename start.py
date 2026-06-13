@@ -97,13 +97,23 @@ def build_page_count_keyboard() -> types.InlineKeyboardMarkup:
     ])
 
 def build_theme_keyboard() -> types.InlineKeyboardMarkup:
-    """Prezentatsiya rang mavzusini tanlash klaviaturasi."""
-    return types.InlineKeyboardMarkup(inline_keyboard=[
-        [types.InlineKeyboardButton(text="🌊 Okean (ko'k)", callback_data="theme_ocean")],
-        [types.InlineKeyboardButton(text="🌿 Zumrad (yashil)", callback_data="theme_emerald")],
-        [types.InlineKeyboardButton(text="🌇 Shafaq (binafsha)", callback_data="theme_sunset")],
-        [types.InlineKeyboardButton(text="🎲 Tasodifiy", callback_data="theme_random")],
-    ])
+    """Prezentatsiya rang mavzusini tanlash klaviaturasi (15 xil dizayn)."""
+    themes = [
+        ("🌊 Okean", "theme_ocean"),        ("🌿 Zumrad", "theme_emerald"),
+        ("🌇 Shafaq", "theme_sunset"),      ("❤️ Qirmizi", "theme_crimson"),
+        ("💜 Binafsha", "theme_violet"),    ("🩵 Moviy-yashil", "theme_teal"),
+        ("🟡 Kahrabo", "theme_amber"),      ("🔵 Indigo", "theme_indigo"),
+        ("🌸 Pushti", "theme_rose"),        ("🩶 Kulrang-ko'k", "theme_slate"),
+        ("🌲 O'rmon", "theme_forest"),      ("🌌 Yarim tun", "theme_midnight"),
+        ("🪸 Marjon", "theme_coral"),       ("🦚 Siyohrang", "theme_cyan"),
+        ("🍇 Olxo'ri", "theme_plum"),
+    ]
+    rows = []
+    for i in range(0, len(themes), 2):
+        row = [types.InlineKeyboardButton(text=t, callback_data=c) for t, c in themes[i:i+2]]
+        rows.append(row)
+    rows.append([types.InlineKeyboardButton(text="🎲 Tasodifiy (har safar har xil)", callback_data="theme_random")])
+    return types.InlineKeyboardMarkup(inline_keyboard=rows)
 
 def build_images_keyboard() -> types.InlineKeyboardMarkup:
     """Slaydlarga rasm qo'shilsinmi (Pexels)."""
@@ -538,7 +548,13 @@ async def icons_selected(callback: types.CallbackQuery, state: FSMContext):
     escaped_student = escape_markdown(user_data.get('student_fio'))
     escaped_group = escape_markdown(user_data.get('student_group'))
 
-    theme_label_map = {"ocean": "🌊 Okean", "emerald": "🌿 Zumrad", "sunset": "🌇 Shafaq"}
+    theme_label_map = {
+        "ocean": "🌊 Okean", "emerald": "🌿 Zumrad", "sunset": "🌇 Shafaq",
+        "crimson": "❤️ Qirmizi", "violet": "💜 Binafsha", "teal": "🩵 Moviy-yashil",
+        "amber": "🟡 Kahrabo", "indigo": "🔵 Indigo", "rose": "🌸 Pushti",
+        "slate": "🩶 Kulrang-ko'k", "forest": "🌲 O'rmon", "midnight": "🌌 Yarim tun",
+        "coral": "🪸 Marjon", "cyan": "🦚 Siyohrang", "plum": "🍇 Olxo'ri",
+    }
     theme_label = theme_label_map.get(user_data.get('pptx_theme'), "🎲 Tasodifiy")
 
     text = "🎉 **Prezentatsiya Tayyor! Maʼlumotlarni Tekshiring.** 🎉\n\n"
@@ -930,13 +946,8 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
                 temp_dir='temp_files',
                 theme_name=user_data.get('pptx_theme'),
                 options=pptx_options)
-            
-            await callback.message.answer_document(
-                document=FSInputFile(file_path),
-                caption=f"✅ **'{topic_translated}'** mavzusidagi {work_type_display} tayyor!",
-                parse_mode='Markdown' 
-            )
-           
+            # Fayl quyida (umumiy blokda) bir marta yuboriladi.
+
         elif  work_type in ['refarat', 'mustaqil_ish']:
         
             main_titles_list = await gemini_service.generate_reja_titles(
@@ -1036,11 +1047,17 @@ async def final_generation_start(callback:types.CallbackQuery, state: FSMContext
              await callback.message.edit_text("Hujjat turi noto'g'ri tanlangan.")
         
         if file_path:
+            # Fayl nomini mavzu qilib qo'yamiz (ruxsat etilmagan belgilarni tozalaymiz),
+            # va hech qanday izoh (caption) qo' shmaymiz.
+            import re as _re
+            raw_name = str(user_data.get('topic', 'Hujjat')).strip()
+            safe_name = _re.sub(r'[\\/:*?"<>|\n\r\t]+', ' ', raw_name).strip()[:80] or 'Hujjat'
+            ext = os.path.splitext(file_path)[1] or '.pptx'
+            download_name = f"{safe_name}{ext}"
+
             await callback.message.answer_document(
-                document=FSInputFile(file_path),
-                caption=f"{user_data.get('topic', 'Hujjat')}",
-                        parse_mode='Markdown' 
-            ) 
+                document=FSInputFile(file_path, filename=download_name)
+            )
         
         message_text = (
                 f"✅ **'{user_data.get('topic', 'Hujjat')}'** mavzusidagi {work_type_display} tayyor!\n"
